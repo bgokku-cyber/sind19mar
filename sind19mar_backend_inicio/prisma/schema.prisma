@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PASSENGER
+  DRIVER
+  FLEET_MANAGER
+  ADMIN
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum DriverAvailability {
+  OFFLINE
+  AVAILABLE
+  ON_TRIP
+}
+
+enum RideStatus {
+  REQUESTED
+  ACCEPTED
+  DRIVER_ARRIVING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  DIGITAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  phone        String        @unique
+  fullName     String
+  role         UserRole
+  status       AccountStatus @default(PENDING)
+  passwordHash String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  passenger    Passenger?
+  driver       Driver?
+}
+
+model Passenger {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  rides     Ride[]   @relation("PassengerRides")
+  createdAt DateTime @default(now())
+}
+
+model Driver {
+  id           String             @id @default(cuid())
+  userId       String             @unique
+  user         User               @relation(fields: [userId], references: [id])
+  availability DriverAvailability @default(OFFLINE)
+  licenseNumber String            @unique
+  verifiedAt   DateTime?
+  vehicles     Vehicle[]
+  rides        Ride[]             @relation("DriverRides")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Vehicle {
+  id          String   @id @default(cuid())
+  driverId    String
+  driver      Driver   @relation(fields: [driverId], references: [id])
+  make        String
+  model       String
+  color       String
+  plateNumber String   @unique
+  year        Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Ride {
+  id                String      @id @default(cuid())
+  passengerId       String
+  passenger         Passenger   @relation("PassengerRides", fields: [passengerId], references: [id])
+  driverId          String?
+  driver            Driver?     @relation("DriverRides", fields: [driverId], references: [id])
+  status            RideStatus  @default(REQUESTED)
+  originAddress     String
+  originLatitude    Decimal     @db.Decimal(10, 7)
+  originLongitude   Decimal     @db.Decimal(10, 7)
+  destinationAddress String
+  destinationLatitude Decimal   @db.Decimal(10, 7)
+  destinationLongitude Decimal  @db.Decimal(10, 7)
+  estimatedFare     Decimal?    @db.Decimal(10, 2)
+  finalFare         Decimal?    @db.Decimal(10, 2)
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus @default(PENDING)
+  requestedAt       DateTime    @default(now())
+  acceptedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  updatedAt         DateTime    @updatedAt
+
+  @@index([passengerId, requestedAt])
+  @@index([driverId, status])
+  @@index([status, requestedAt])
+}
