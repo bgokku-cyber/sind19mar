@@ -55,3 +55,28 @@ export async function addVehicle(vehicle: { make: string; model: string; color: 
 }
 
 export async function logout() { await AsyncStorage.removeItem(TOKEN_KEY); }
+
+
+export type DriverRide = {
+  id: string;
+  status: 'REQUESTED' | 'ACCEPTED' | 'DRIVER_ARRIVING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  originAddress: string;
+  destinationAddress: string;
+  estimatedFare: string | number | null;
+  paymentMethod: 'CASH' | 'DIGITAL';
+  requestedAt: string;
+};
+
+export async function getRides() {
+  return request<DriverRide[]>('/rides');
+}
+
+export async function acceptRide(rideId: string) {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/accept`, { method: 'POST' });
+}
+
+export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'IN_PROGRESS' | 'COMPLETED') {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/status`, {
+    method: 'POST', body: JSON.stringify({ status }),
+  });
+}
