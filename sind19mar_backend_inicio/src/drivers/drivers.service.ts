@@ -27,7 +27,7 @@ export class DriversService {
   }
 
   async setAvailability(driverId: string, availability: DriverAvailability) {
-    if (![DriverAvailability.AVAILABLE, DriverAvailability.OFFLINE].includes(availability)) throw new BadRequestException('Disponibilidad solicitada no válida.');
+    if (!( [DriverAvailability.AVAILABLE, DriverAvailability.OFFLINE] as DriverAvailability[]).includes(availability)) throw new BadRequestException('Disponibilidad solicitada no válida.');
     const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, include: { vehicles: { where: { isActive: true } } } });
     if (!driver) throw new NotFoundException('No se encontró el perfil del conductor.');
     if (availability === DriverAvailability.AVAILABLE && (!driver.verifiedAt || driver.vehicles.length === 0)) throw new ForbiddenException('Tu cuenta y al menos un vehículo deben estar aprobados antes de conectarte.');
