@@ -46,7 +46,7 @@ export class RidesService {
     return this.prisma.$transaction(async (tx) => {
       // Reclama al conductor de forma atómica para impedir que acepte dos viajes simultáneos.
       const driverClaim = await tx.driver.updateMany({
-        where: { id: driverId, availability: 'AVAILABLE', verifiedAt: { not: null } },
+        where: { id: driverId, availability: 'AVAILABLE', verifiedAt: { not: null }, user: { status: 'ACTIVE' }, vehicles: { some: { isActive: true } } },
         data: { availability: 'ON_TRIP' },
       });
       if (driverClaim.count !== 1) {
