@@ -64,4 +64,48 @@ export class RidesService {
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
     });
   }
+
+  async advanceStatus(rideId: string, driverId: string, nextStatus: RideStatus) {
+    if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
+    const transitions: Partial<Record<RideStatus, RideStatus>> = {
+      [RideStatus.ACCEPTED]: RideStatus.DRIVER_ARRIVING,
+      [RideStatus.DRIVER_ARRIVING]: RideStatus.IN_PROGRESS,
+      [RideStatus.IN_PROGRESS]: RideStatus.COMPLETED,
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findFirst({ where: { id: rideId, driverId } });
+      if (!ride) throw new NotFoundException('No se encontró un viaje asignado a ese conductor.');
+
+      if (transitions[ride.status] !== nextStatus) {
+        throw new ConflictException('Transición no permitida para el estado actual del viaje.');
+      }
+
+      const timestamp = new Date();
+      const data: Prisma.RideUpdateManyMutationInput = { status: nextStatus };
+      if (nextStatus === RideStatus.DRIVER_ARRIVING) data.acceptedAt = ride.acceptedAt ?? timestamp;
+      if (nextStatus === RideStatus.IN_PROGRESS) data.startedAt = timestamp;
+      if (nextStatus === RideStatus.COMPLETED) data.completedAt = timestamp;
+
+      const changed = await tx.ride.updateMany({
+        where: { id: rideId, driverId, status: ride.status },
+        data,
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('El viaje cambió mientras se procesaba la solicitud. Inténtalo de nuevo.');
+      }
+
+      if (nextStatus === RideStatus.COMPLETED) {
+        const released = await tx.driver.updateMany({
+          where: { id: driverId, availability: 'ON_TRIP' },
+          data: { availability: 'AVAILABLE' },
+        });
+        if (released.count !== 1) {
+          throw new ConflictException('No se pudo liberar la disponibilidad del conductor.');
+        }
+      }
+
+      return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
+    });
+  }
 }
