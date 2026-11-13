@@ -5,6 +5,7 @@ Prefijo global: `/api`
 ## Autenticación
 - `POST /api/auth/register/passenger` — registra pasajero con `fullName`, `phone`, `password`; devuelve token de acceso.
 - `POST /api/auth/register/driver` — registra conductor con los mismos campos más `licenseNumber`; el conductor puede iniciar sesión y registrar vehículo, pero no conectarse ni aceptar viajes hasta aprobación.
+- `POST /api/auth/register/fleet-manager` — recibe `fullName`, `phone`, `password`, `fleetName` y opcionalmente `legalName`; crea una solicitud pendiente. La cuenta no puede iniciar sesión hasta aprobación administrativa.
 - `POST /api/auth/login` — recibe `phone` y `password`; devuelve token Bearer válido por 12 horas.
 
 Contraseñas: mínimo 10 caracteres. El hash se guarda con bcrypt. La verificación de teléfono por SMS/OTP aún no está integrada; no considerar el registro listo para producción hasta elegir e integrar un proveedor y sus controles antifraude.
@@ -21,6 +22,12 @@ Contraseñas: mínimo 10 caracteres. El hash se guarda con bcrypt. La verificaci
 - `PATCH /api/admin/users/:id/suspend` — suspende una cuenta y desconecta al conductor si corresponde.
 
 El primer administrador se crea de forma explícita con `npx prisma db seed`, definiendo `ADMIN_PHONE`, `ADMIN_PASSWORD` (mínimo 14 caracteres) y opcionalmente `ADMIN_NAME` en el entorno. Nunca se publica una ruta abierta para crear administradores.
+
+## Flotas
+- `GET /api/admin/fleets/pending` — lista solicitudes pendientes (ADMIN).
+- `PATCH /api/admin/fleets/:id/approve` — aprueba la flota y activa la cuenta de su responsable (ADMIN).
+- `GET /api/fleets/me` — consulta la flota y sus conductores (FLEET_MANAGER).
+- `POST /api/fleets/me/drivers` — cuerpo `{ "phone": "..." }`; asocia a la flota un conductor existente, aprobado y aún no asignado a otra flota. Solo flotas aprobadas pueden incorporar conductores.
 
 ## Viajes (requiere Bearer)
 - `POST /api/rides` — crea una solicitud; el pasajero se obtiene de la sesión, no del cuerpo.
@@ -44,4 +51,4 @@ Las transiciones y reclamaciones críticas se validan en el servidor y usan tran
 - CORS queda desactivado si no se configura `CORS_ORIGINS`; establecer orígenes explícitos para el panel web.
 
 ## Pendiente antes de producción
-Falta OTP/SMS, recuperación y rotación de sesiones, límites de intentos y throttling, pruebas automatizadas, cancelaciones y reglas de reembolso, pasarela de pagos, carga segura de documentos, auditoría administrativa, monitoreo, respaldo y despliegue. No usar datos reales ni abrir la API públicamente como servicio productivo todavía.
+Falta OTP/SMS, recuperación y rotación de sesiones, límites de intentos y throttling, migración de base de datos, pruebas automatizadas ampliadas, reglas de reembolso, pasarela de pagos, carga segura de documentos, auditoría administrativa, monitoreo, respaldo y despliegue. No usar datos reales ni abrir la API públicamente como servicio productivo todavía.
