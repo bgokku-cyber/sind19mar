@@ -1,0 +1,34 @@
+name: Driver App CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/driver/**"
+      - ".github/workflows/driver-app-ci.yml"
+  pull_request:
+    paths:
+      - "apps/driver/**"
+      - ".github/workflows/driver-app-ci.yml"
+
+concurrency:
+  group: driver-app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/driver
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias
+        run: npm install
+      - name: Revisar tipos TypeScript
+        run: npm run typecheck
