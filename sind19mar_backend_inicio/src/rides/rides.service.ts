@@ -70,7 +70,7 @@ export class RidesService {
       const ride = await tx.ride.findUnique({ where: { id: rideId } });
       if (!ride) throw new NotFoundException('No se encontró el viaje.');
 
-      const cancellable = [RideStatus.REQUESTED, RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING];
+      const cancellable: RideStatus[] = [RideStatus.REQUESTED, RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING];
       if (!cancellable.includes(ride.status)) {
         throw new ConflictException('Este viaje ya no puede cancelarse desde la aplicación.');
       }
@@ -80,7 +80,7 @@ export class RidesService {
           throw new ConflictException('El pasajero solo puede cancelar su solicitud antes de que sea aceptada.');
         }
       } else if (actor.role === 'DRIVER') {
-        if (!actor.driverId || ride.driverId !== actor.driverId || ![RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING].includes(ride.status)) {
+        if (!actor.driverId || ride.driverId !== actor.driverId || !([RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING] as RideStatus[]).includes(ride.status)) {
           throw new ConflictException('El conductor solo puede cancelar un viaje propio antes de iniciarlo.');
         }
       } else if (actor.role !== 'ADMIN') {
