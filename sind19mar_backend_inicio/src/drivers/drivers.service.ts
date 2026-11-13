@@ -28,9 +28,10 @@ export class DriversService {
 
   async setAvailability(driverId: string, availability: DriverAvailability) {
     if (!( [DriverAvailability.AVAILABLE, DriverAvailability.OFFLINE] as DriverAvailability[]).includes(availability)) throw new BadRequestException('Disponibilidad solicitada no válida.');
-    const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, include: { vehicles: { where: { isActive: true } } } });
+    const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, include: { vehicles: { where: { isActive: true } }, fleet: { select: { status: true } } } });
     if (!driver) throw new NotFoundException('No se encontró el perfil del conductor.');
     if (availability === DriverAvailability.AVAILABLE && (!driver.verifiedAt || driver.vehicles.length === 0)) throw new ForbiddenException('Tu cuenta y al menos un vehículo deben estar aprobados antes de conectarte.');
+    if (availability === DriverAvailability.AVAILABLE && driver.fleet && driver.fleet.status !== 'ACTIVE') throw new ForbiddenException('La flota asociada no está habilitada para operar.');
     if (driver.availability === DriverAvailability.ON_TRIP) throw new ConflictException('No puedes cambiar tu disponibilidad durante un viaje.');
     return this.prisma.driver.update({ where: { id: driverId }, data: { availability } });
   }
