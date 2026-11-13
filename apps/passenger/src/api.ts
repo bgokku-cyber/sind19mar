@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\\/$/, '');
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
 const TOKEN_KEY = 'sind19mar.passenger.token';
 
 export type AuthResponse = {
@@ -45,6 +45,18 @@ export async function register(fullName: string, phone: string, password: string
   });
   await AsyncStorage.setItem(TOKEN_KEY, result.accessToken);
   return result;
+}
+
+export async function restoreSession() {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  if (!token) return false;
+  try {
+    await request('/rides');
+    return true;
+  } catch {
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    return false;
+  }
 }
 
 export async function logout() {
