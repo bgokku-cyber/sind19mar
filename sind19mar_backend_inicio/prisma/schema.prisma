@@ -26,6 +26,19 @@ enum DriverAvailability {
   ON_TRIP
 }
 
+enum FleetStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum FleetMembershipStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  LEFT
+}
+
 enum RideStatus {
   REQUESTED
   ACCEPTED
@@ -58,6 +71,7 @@ model User {
   updatedAt    DateTime      @updatedAt
   passenger    Passenger?
   driver       Driver?
+  managedFleets Fleet[]      @relation("FleetManager")
 }
 
 model Passenger {
@@ -69,22 +83,56 @@ model Passenger {
 }
 
 model Driver {
-  id           String             @id @default(cuid())
-  userId       String             @unique
-  user         User               @relation(fields: [userId], references: [id])
-  availability DriverAvailability @default(OFFLINE)
-  licenseNumber String            @unique
-  verifiedAt   DateTime?
-  vehicles     Vehicle[]
-  rides        Ride[]             @relation("DriverRides")
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id               String                   @id @default(cuid())
+  userId           String                   @unique
+  user             User                     @relation(fields: [userId], references: [id])
+  availability     DriverAvailability        @default(OFFLINE)
+  licenseNumber    String                   @unique
+  verifiedAt       DateTime?
+  vehicles         Vehicle[]
+  rides            Ride[]                   @relation("DriverRides")
+  fleetMemberships FleetMembership[]
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+}
+
+model Fleet {
+  id             String             @id @default(cuid())
+  name           String
+  legalName      String?
+  contactPhone   String?
+  status         FleetStatus        @default(PENDING)
+  managerUserId  String
+  managerUser    User               @relation("FleetManager", fields: [managerUserId], references: [id])
+  memberships    FleetMembership[]
+  vehicles       Vehicle[]
+  rides          Ride[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model FleetMembership {
+  id        String                 @id @default(cuid())
+  fleetId   String
+  driverId  String
+  status    FleetMembershipStatus  @default(PENDING)
+  joinedAt  DateTime               @default(now())
+  endedAt   DateTime?
+  fleet     Fleet                  @relation(fields: [fleetId], references: [id])
+  driver    Driver                 @relation(fields: [driverId], references: [id])
+
+  @@unique([fleetId, driverId])
+  @@index([driverId, status])
 }
 
 model Vehicle {
   id          String   @id @default(cuid())
-  driverId    String
-  driver      Driver   @relation(fields: [driverId], references: [id])
+  driverId    String?
+  driver      Driver?  @relation(fields: [driverId], references: [id])
+  fleetId     String?
+  fleet       Fleet?   @relation(fields: [fleetId], references: [id])
   make        String
   model       String
   color       String
@@ -92,33 +140,39 @@ model Vehicle {
   year        Int
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+
+  @@index([fleetId, isActive])
+  @@index([driverId, isActive])
 }
 
 model Ride {
-  id                String      @id @default(cuid())
-  passengerId       String
-  passenger         Passenger   @relation("PassengerRides", fields: [passengerId], references: [id])
-  driverId          String?
-  driver            Driver?     @relation("DriverRides", fields: [driverId], references: [id])
-  status            RideStatus  @default(REQUESTED)
-  originAddress     String
-  originLatitude    Decimal     @db.Decimal(10, 7)
-  originLongitude   Decimal     @db.Decimal(10, 7)
-  destinationAddress String
-  destinationLatitude Decimal   @db.Decimal(10, 7)
-  destinationLongitude Decimal  @db.Decimal(10, 7)
-  estimatedFare     Decimal?    @db.Decimal(10, 2)
-  finalFare         Decimal?    @db.Decimal(10, 2)
-  paymentMethod     PaymentMethod
-  paymentStatus     PaymentStatus @default(PENDING)
-  requestedAt       DateTime    @default(now())
-  acceptedAt        DateTime?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  cancelledAt       DateTime?
-  updatedAt         DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  passengerId         String
+  passenger           Passenger   @relation("PassengerRides", fields: [passengerId], references: [id])
+  driverId            String?
+  driver              Driver?     @relation("DriverRides", fields: [driverId], references: [id])
+  fleetId             String?
+  fleet               Fleet?      @relation(fields: [fleetId], references: [id])
+  status              RideStatus  @default(REQUESTED)
+  originAddress       String
+  originLatitude      Decimal     @db.Decimal(10, 7)
+  originLongitude     Decimal     @db.Decimal(10, 7)
+  destinationAddress  String
+  destinationLatitude Decimal     @db.Decimal(10, 7)
+  destinationLongitude Decimal    @db.Decimal(10, 7)
+  estimatedFare       Decimal?    @db.Decimal(10, 2)
+  finalFare           Decimal?    @db.Decimal(10, 2)
+  paymentMethod       PaymentMethod
+  paymentStatus       PaymentStatus @default(PENDING)
+  requestedAt         DateTime    @default(now())
+  acceptedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  updatedAt           DateTime    @updatedAt
 
   @@index([passengerId, requestedAt])
   @@index([driverId, status])
+  @@index([fleetId, requestedAt])
   @@index([status, requestedAt])
 }
