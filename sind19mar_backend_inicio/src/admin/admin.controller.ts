@@ -15,6 +15,12 @@ export class AdminController {
   @Get('drivers/pending')
   pendingDrivers(@Req() request: any) { this.assertAdmin(request); return this.admin.pendingDrivers(); }
 
+  @Get('fleets/pending')
+  pendingFleets(@Req() request: any) { this.assertAdmin(request); return this.admin.pendingFleets(); }
+
+  @Patch('fleets/:id/approve')
+  approveFleet(@Req() request: any, @Param('id') id: string) { this.assertAdmin(request); return this.admin.approveFleet(id); }
+
   @Patch('drivers/:id/approve')
   approveDriver(@Req() request: any, @Param('id') id: string) { this.assertAdmin(request); return this.admin.approveDriver(id); }
 
