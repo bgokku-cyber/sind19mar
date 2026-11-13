@@ -6,6 +6,17 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  listRecentRides() {
+    return this.prisma.ride.findMany({
+      include: {
+        passenger: { include: { user: { select: { fullName: true, phone: true } } } },
+        driver: { include: { user: { select: { fullName: true, phone: true } } } },
+      },
+      orderBy: { requestedAt: 'desc' },
+      take: 100,
+    });
+  }
+
   pendingDrivers() {
     return this.prisma.driver.findMany({ where: { verifiedAt: null }, include: { user: { select: { id: true, fullName: true, phone: true, status: true, createdAt: true } }, vehicles: true }, orderBy: { createdAt: 'asc' } });
   }
