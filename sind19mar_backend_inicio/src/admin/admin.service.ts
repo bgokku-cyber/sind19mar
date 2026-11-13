@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccountStatus } from '@prisma/client';
+import { AccountStatus, FleetStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -8,6 +8,20 @@ export class AdminService {
 
   pendingDrivers() {
     return this.prisma.driver.findMany({ where: { verifiedAt: null }, include: { user: { select: { id: true, fullName: true, phone: true, status: true, createdAt: true } }, vehicles: true }, orderBy: { createdAt: 'asc' } });
+  }
+
+  pendingFleets() {
+    return this.prisma.fleet.findMany({ where: { status: FleetStatus.PENDING }, include: { manager: { select: { id: true, fullName: true, phone: true, createdAt: true } } }, orderBy: { createdAt: 'asc' } });
+  }
+
+  async approveFleet(fleetId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const fleet = await tx.fleet.findUnique({ where: { id: fleetId } });
+      if (!fleet) throw new NotFoundException('No se encontró la flota.');
+      if (fleet.status !== FleetStatus.PENDING) throw new ConflictException('La flota ya fue revisada.');
+      await tx.user.update({ where: { id: fleet.managerUserId }, data: { status: AccountStatus.ACTIVE } });
+      return tx.fleet.update({ where: { id: fleetId }, data: { status: FleetStatus.ACTIVE } });
+    });
   }
 
   async approveDriver(driverId: string) {
@@ -33,6 +47,13 @@ export class AdminService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { status: AccountStatus.SUSPENDED } });
       if (user.role === 'DRIVER') await tx.driver.updateMany({ where: { userId }, data: { availability: 'OFFLINE' } });
+      if (user.role === 'FLEET_MANAGER') {
+        const fleet = await tx.fleet.findUnique({ where: { managerUserId: userId } });
+        if (fleet) {
+          await tx.fleet.update({ where: { id: fleet.id }, data: { status: FleetStatus.SUSPENDED } });
+          await tx.driver.updateMany({ where: { fleetId: fleet.id }, data: { availability: 'OFFLINE' } });
+        }
+      }
     });
     return { success: true };
   }
