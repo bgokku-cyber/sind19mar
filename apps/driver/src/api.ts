@@ -68,7 +68,11 @@ export type DriverRide = {
 };
 
 export async function getRides() {
-  return request<DriverRide[]>('/rides');
+  const [available, assigned] = await Promise.all([
+    request<DriverRide[]>('/rides/available'),
+    request<DriverRide[]>('/rides'),
+  ]);
+  return [...available, ...assigned];
 }
 
 export async function acceptRide(rideId: string) {
