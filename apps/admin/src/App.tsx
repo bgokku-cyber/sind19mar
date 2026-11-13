@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';\nimport type { FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 type Vehicle = { id: string; make: string; model: string; color: string; plateNumber: string; year: number; isActive: boolean };
