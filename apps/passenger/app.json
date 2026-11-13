@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Sind.19-Mar Pasajero",
+    "slug": "sind19mar-pasajero",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "bo.sind19mar.pasajero",
+      "versionCode": 1
+    }
+  }
+}
