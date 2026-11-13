@@ -46,7 +46,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(input.password, 12);
     try {
       const user = await this.prisma.user.create({
-        data: { phone, fullName: input.fullName.trim(), passwordHash, role: UserRole.DRIVER, status: AccountStatus.PENDING, driver: { create: { licenseNumber: input.licenseNumber.trim(), availability: 'OFFLINE' } } },
+        data: { phone, fullName: input.fullName.trim(), passwordHash, role: UserRole.DRIVER, status: AccountStatus.ACTIVE, driver: { create: { licenseNumber: input.licenseNumber.trim(), availability: 'OFFLINE' } } },
       });
       return { ...await this.issueToken(user), message: 'Cuenta creada. Queda pendiente la revisión administrativa antes de conducir.' };
     } catch (error: any) {
