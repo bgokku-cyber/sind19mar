@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { login, logout, register } from './src/api';
+import { login, logout, register, restoreSession } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -23,12 +23,17 @@ type Mode = 'login' | 'register';
 export default function App() {
   const [mode, setMode] = useState<Mode>('login');
   const [authenticated, setAuthenticated] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+
+  useEffect(() => {
+    restoreSession().then(setAuthenticated).finally(() => setCheckingSession(false));
+  }, []);
 
   async function submitAuth() {
     if (!phone.trim() || !password) {
@@ -55,6 +60,10 @@ export default function App() {
     await logout();
     setAuthenticated(false);
     setPassword('');
+  }
+
+  if (checkingSession) {
+    return <SafeAreaView style={[styles.safe, styles.center]}><StatusBar barStyle='light-content' backgroundColor={C.dark} /><ActivityIndicator color={C.bright} size='large' /><Text style={styles.loadingText}>Preparando tu experiencia...</Text></SafeAreaView>;
   }
 
   if (!authenticated) {
@@ -160,6 +169,8 @@ function Field({ label, value, onChangeText, placeholder, secureTextEntry, keybo
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: C.white, marginTop: 14, fontSize: 13 },
   safe: { flex: 1, backgroundColor: C.dark },
   safeHome: { flex: 1, backgroundColor: C.bg },
   authContent: { flexGrow: 1, backgroundColor: C.bg, paddingBottom: 28 },
