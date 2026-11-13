@@ -12,6 +12,9 @@ export class AdminController {
     if (request.user.role !== UserRole.ADMIN) throw new ForbiddenException('Se requiere permiso de administrador.');
   }
 
+  @Get('rides')
+  recentRides(@Req() request: any) { this.assertAdmin(request); return this.admin.listRecentRides(); }
+
   @Get('drivers/pending')
   pendingDrivers(@Req() request: any) { this.assertAdmin(request); return this.admin.pendingDrivers(); }
 
