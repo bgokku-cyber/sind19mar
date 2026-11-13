@@ -29,13 +29,20 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');\n  const [rides, setRides] = useState<PassengerRide[]>([]);\n  const [loadingRides, setLoadingRides] = useState(false);\n  const [rideActionBusy, setRideActionBusy] = useState(false);
+  const [destination, setDestination] = useState('');
+  const [rides, setRides] = useState<PassengerRide[]>([]);
+  const [loadingRides, setLoadingRides] = useState(false);
+  const [rideActionBusy, setRideActionBusy] = useState(false);
 
   useEffect(() => {
-    restoreSession().then(setAuthenticated).finally(() => setCheckingSession(false));
+    restoreSession().then(async ok => { setAuthenticated(ok); if (ok) await refreshRides(); }).finally(() => setCheckingSession(false));
   }, []);
 
-  async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }\n\n  async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }\n\n  async function submitAuth() {
+  async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
+
+  async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }
+
+  async function submitAuth() {
     if (!phone.trim() || !password) {
       Alert.alert('Faltan datos', 'Ingresa tu número de teléfono y contraseña.');
       return;
@@ -48,7 +55,8 @@ export default function App() {
     try {
       if (mode === 'login') await login(phone.trim(), password);
       else await register(name.trim(), phone.trim(), password);
-      setAuthenticated(true);\n      await refreshRides();
+      setAuthenticated(true);
+      await refreshRides();
     } catch (error) {
       Alert.alert('No pudimos continuar', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
     } finally {
@@ -58,7 +66,8 @@ export default function App() {
 
   async function signOut() {
     await logout();
-    setAuthenticated(false);\n    setRides([]);
+    setAuthenticated(false);
+    setRides([]);
     setPassword('');
   }
 
@@ -151,7 +160,9 @@ export default function App() {
   );
 }
 
-function passengerRideStatus(status: PassengerRide['status']) { return ({ REQUESTED: 'Buscando conductor', ACCEPTED: 'Conductor asignado', DRIVER_ARRIVING: 'Conductor en camino', IN_PROGRESS: 'Viaje en curso', COMPLETED: 'Viaje completado', CANCELLED: 'Viaje cancelado' })[status]; }\n\ntype FieldProps = {
+function passengerRideStatus(status: PassengerRide['status']) { return ({ REQUESTED: 'Buscando conductor', ACCEPTED: 'Conductor asignado', DRIVER_ARRIVING: 'Conductor en camino', IN_PROGRESS: 'Viaje en curso', COMPLETED: 'Viaje completado', CANCELLED: 'Viaje cancelado' })[status]; }
+
+type FieldProps = {
   label: string; value: string; onChangeText: (value: string) => void;
   placeholder: string; secureTextEntry?: boolean; keyboardType?: 'default' | 'phone-pad';
 };
@@ -229,7 +240,20 @@ const styles = StyleSheet.create({
   selectedDot: { width: 21, height: 21, borderRadius: 11, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
   check: { color: C.white, fontSize: 12, fontWeight: '900' },
   notice: { color: C.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 10 },
-  historyCard: { backgroundColor: C.white, borderRadius: 17, padding: 17, marginTop: 14, borderWidth: 1, borderColor: '#E7EEE9' },\n  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },\n  historyTitle: { color: C.ink, fontSize: 17, fontWeight: '800' },\n  refreshText: { color: C.green, fontSize: 12, fontWeight: '800' },\n  historyEmpty: { color: C.muted, fontSize: 12, marginTop: 13 },\n  rideItem: { borderTopWidth: 1, borderTopColor: C.line, marginTop: 13, paddingTop: 13 },\n  rideTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },\n  rideStatus: { color: C.dark, fontSize: 12, fontWeight: '900' },\n  rideFare: { color: C.green, fontSize: 14, fontWeight: '900' },\n  rideLabel: { color: C.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1, marginTop: 10 },\n  rideAddress: { color: C.ink, fontSize: 12, fontWeight: '700', marginTop: 3 },\n  rideMeta: { color: C.muted, fontSize: 10, marginTop: 9 },\n  cancelButton: { borderWidth: 1, borderColor: C.red, borderRadius: 10, padding: 11, alignItems: 'center', marginTop: 11 },\n  cancelText: { color: C.red, fontSize: 12, fontWeight: '800' },
+  historyCard: { backgroundColor: C.white, borderRadius: 17, padding: 17, marginTop: 14, borderWidth: 1, borderColor: '#E7EEE9' },
+  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  historyTitle: { color: C.ink, fontSize: 17, fontWeight: '800' },
+  refreshText: { color: C.green, fontSize: 12, fontWeight: '800' },
+  historyEmpty: { color: C.muted, fontSize: 12, marginTop: 13 },
+  rideItem: { borderTopWidth: 1, borderTopColor: C.line, marginTop: 13, paddingTop: 13 },
+  rideTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rideStatus: { color: C.dark, fontSize: 12, fontWeight: '900' },
+  rideFare: { color: C.green, fontSize: 14, fontWeight: '900' },
+  rideLabel: { color: C.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1, marginTop: 10 },
+  rideAddress: { color: C.ink, fontSize: 12, fontWeight: '700', marginTop: 3 },
+  rideMeta: { color: C.muted, fontSize: 10, marginTop: 9 },
+  cancelButton: { borderWidth: 1, borderColor: C.red, borderRadius: 10, padding: 11, alignItems: 'center', marginTop: 11 },
+  cancelText: { color: C.red, fontSize: 12, fontWeight: '800' },
   historyIcon: { color: C.green, fontSize: 21, marginRight: 12 },
   historyText: { flex: 1, color: C.ink, fontSize: 13, fontWeight: '700' },
   chevron: { color: C.muted, fontSize: 23 },
