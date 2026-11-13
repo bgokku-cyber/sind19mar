@@ -9,7 +9,7 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
 
   private normalizePhone(phone: string) {
-    return phone.replace(/[\\s()-]/g, '');
+    return phone.replace(/[\s()-]/g, '');
   }
 
   private validateRegistration(input: any) {
