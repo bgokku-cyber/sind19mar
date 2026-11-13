@@ -11,6 +11,9 @@ export class AuthController {
   @Post('register/driver')
   registerDriver(@Body() body: any) { return this.auth.registerDriver(body); }
 
+  @Post('register/fleet-manager')
+  registerFleetManager(@Body() body: any) { return this.auth.registerFleetManager(body); }
+
   @Post('login')
   login(@Body() body: any) { return this.auth.login(body); }
 }
