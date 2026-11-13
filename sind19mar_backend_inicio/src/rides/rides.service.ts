@@ -40,6 +40,26 @@ export class RidesService {
     });
   }
 
+  async listAvailable(driverId: string) {
+    const eligible = await this.prisma.driver.findFirst({
+      where: {
+        id: driverId,
+        availability: 'AVAILABLE',
+        verifiedAt: { not: null },
+        user: { status: 'ACTIVE' },
+        vehicles: { some: { isActive: true } },
+        OR: [{ fleetId: null }, { fleet: { is: { status: 'ACTIVE' } } }],
+      },
+      select: { id: true },
+    });
+    if (!eligible) return [];
+    return this.prisma.ride.findMany({
+      where: { status: RideStatus.REQUESTED, driverId: null },
+      orderBy: { requestedAt: 'asc' },
+      take: 50,
+    });
+  }
+
   async accept(rideId: string, driverId: string) {
     if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
 
