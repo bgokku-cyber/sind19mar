@@ -31,6 +31,15 @@ export class RidesController {
     return this.ridesService.accept(id, request.user.driver.id);
   }
 
+  @Post(':id/cancel')
+  cancel(@Param('id') id: string, @Req() request: any) {
+    return this.ridesService.cancel(id, {
+      role: request.user.role,
+      passengerId: request.user.passenger?.id,
+      driverId: request.user.driver?.id,
+    });
+  }
+
   @Post(':id/status')
   advanceStatus(@Param('id') id: string, @Body('status') status: RideStatus, @Req() request: any) {
     if (request.user.role !== UserRole.DRIVER || !request.user.driver) throw new ForbiddenException('Solo el conductor asignado puede actualizar el viaje.');
