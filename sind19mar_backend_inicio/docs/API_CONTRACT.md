@@ -26,6 +26,7 @@ El primer administrador se crea de forma explícita con `npx prisma db seed`, de
 - `POST /api/rides` — crea una solicitud; el pasajero se obtiene de la sesión, no del cuerpo.
 - `GET /api/rides` — devuelve solo los viajes propios del pasajero o conductor autenticado.
 - `POST /api/rides/:id/accept` — conductor autenticado acepta un viaje disponible.
+- `POST /api/rides/:id/cancel` — pasajero cancela solo solicitudes aún no aceptadas; conductor cancela su viaje antes de iniciarlo; administrador puede cancelar antes del inicio. No se calculan penalidades ni cargos de cancelación en esta versión.
 - `POST /api/rides/:id/status` — cuerpo `{ "status": "DRIVER_ARRIVING" | "IN_PROGRESS" | "COMPLETED" }`; solo el conductor asignado puede avanzar el viaje.
 
 Transiciones permitidas:
@@ -34,7 +35,7 @@ Transiciones permitidas:
 3. `DRIVER_ARRIVING → IN_PROGRESS`.
 4. `IN_PROGRESS → COMPLETED`; al completar, el conductor vuelve a estar disponible.
 
-Las transiciones y reclamaciones críticas se validan en el servidor y usan transacciones. Las cancelaciones, tarifas finales, liquidaciones y pasarela de pagos quedan pendientes de definición e implementación.
+Las transiciones y reclamaciones críticas se validan en el servidor y usan transacciones. Las tarifas finales, liquidaciones y pasarela de pagos quedan pendientes de definición e implementación.
 
 ## Salud y convenciones
 - `GET /api/health` — comprueba que la API responde.
