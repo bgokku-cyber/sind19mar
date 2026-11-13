@@ -18,6 +18,12 @@ export class RidesController {
     return this.ridesService.create(input);
   }
 
+  @Get('available')
+  listAvailable(@Req() request: any) {
+    if (request.user.role !== UserRole.DRIVER || !request.user.driver) throw new ForbiddenException('Solo un conductor puede consultar solicitudes disponibles.');
+    return this.ridesService.listAvailable(request.user.driver.id);
+  }
+
   @Get()
   list(@Query('passengerId') passengerId: string | undefined, @Query('driverId') driverId: string | undefined, @Req() request: any) {
     if (request.user.role === UserRole.PASSENGER && request.user.passenger) return this.ridesService.list({ passengerId: request.user.passenger.id });
