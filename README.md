@@ -2,8 +2,12 @@
 
 Plataforma de transporte para La Paz, Bolivia.
 
-Este repositorio contiene el desarrollo de las aplicaciones de pasajero y conductor, el panel administrativo web y la API central.
+## Componentes
+- `sind19mar_backend_inicio/`: API central NestJS y Prisma.
+- `apps/passenger/`: aplicación Android del pasajero (Expo / React Native).
+- Próximamente: aplicación Android del conductor y panel administrativo web.
 
 ## Estado
+Desarrollo inicial. La API tiene módulos de autenticación, viajes, conductores, administración y flotas. La aplicación del pasajero inicia su primera etapa con acceso y registro conectados a la API. Todavía no existe despliegue de producción ni integración real de mapas o pagos.
 
-Desarrollo inicial. El backend se está construyendo y probando en GitHub Codespaces; todavía no está desplegado en producción.
+Consulta los README de cada componente para instrucciones específicas.
