@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Sind.19-Mar Conductor",
+    "slug": "sind19mar-conductor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "bo.sind19mar.conductor",
+      "versionCode": 1
+    }
+  }
+}
