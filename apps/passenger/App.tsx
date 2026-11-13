@@ -127,7 +127,7 @@ export default function App() {
           <Field label="Destino" value={destination} onChangeText={setDestination} placeholder="¿A dónde quieres ir?" />
           <View style={styles.paymentRow}>
             <View style={styles.cashIcon}><Text style={styles.cashGlyph}>Bs</Text></View>
-            <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo</Text><Text style={styles.paymentHint}>Otras opciones se habilitarán más adelante</Text></View>
+            <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
           <Pressable style={[styles.primaryButton, styles.disabled]} disabled>
