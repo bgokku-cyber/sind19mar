@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';\nimport type { FormEvent } from 'react';
 
 const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 type Vehicle = { id: string; make: string; model: string; color: string; plateNumber: string; year: number; isActive: boolean };
@@ -40,7 +40,7 @@ export default function App() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function signIn(event: React.FormEvent) {
+  async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy('login'); setError('');
     try {
       const auth = await requestUnauth<Auth>('/auth/login', { phone: phone.trim(), password });
