@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { login, logout, register, restoreSession } from './src/api';
+import { cancelRide, getMyRides, login, logout, PassengerRide, register, restoreSession } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -29,13 +29,13 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState('');\n  const [rides, setRides] = useState<PassengerRide[]>([]);\n  const [loadingRides, setLoadingRides] = useState(false);\n  const [rideActionBusy, setRideActionBusy] = useState(false);
 
   useEffect(() => {
     restoreSession().then(setAuthenticated).finally(() => setCheckingSession(false));
   }, []);
 
-  async function submitAuth() {
+  async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }\n\n  async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }\n\n  async function submitAuth() {
     if (!phone.trim() || !password) {
       Alert.alert('Faltan datos', 'Ingresa tu número de teléfono y contraseña.');
       return;
@@ -48,7 +48,7 @@ export default function App() {
     try {
       if (mode === 'login') await login(phone.trim(), password);
       else await register(name.trim(), phone.trim(), password);
-      setAuthenticated(true);
+      setAuthenticated(true);\n      await refreshRides();
     } catch (error) {
       Alert.alert('No pudimos continuar', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
     } finally {
@@ -58,7 +58,7 @@ export default function App() {
 
   async function signOut() {
     await logout();
-    setAuthenticated(false);
+    setAuthenticated(false);\n    setRides([]);
     setPassword('');
   }
 
@@ -135,16 +135,23 @@ export default function App() {
           </Pressable>
           <Text style={styles.notice}>La solicitud se habilitará cuando conectemos los mapas y la ubicación real. No mostraremos ubicaciones inventadas.</Text>
         </View>
-        <Pressable onPress={() => Alert.alert('Próximamente', 'Aquí encontrarás tus viajes anteriores cuando terminemos el módulo de historial.')} style={styles.historyButton}>
-          <Text style={styles.historyIcon}>◷</Text><Text style={styles.historyText}>Mis viajes</Text><Text style={styles.chevron}>›</Text>
-        </Pressable>
+        <View style={styles.historyCard}>
+          <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
+          {rides.length === 0 ? <Text style={styles.historyEmpty}>Todavía no tienes viajes registrados.</Text> : rides.map(ride => <View key={ride.id} style={styles.rideItem}>
+            <View style={styles.rideTop}><Text style={styles.rideStatus}>{passengerRideStatus(ride.status)}</Text>{ride.estimatedFare !== null && <Text style={styles.rideFare}>Bs {Number(ride.estimatedFare).toFixed(2).replace('.', ',')}</Text>}</View>
+            <Text style={styles.rideLabel}>ORIGEN</Text><Text style={styles.rideAddress}>{ride.originAddress}</Text>
+            <Text style={styles.rideLabel}>DESTINO</Text><Text style={styles.rideAddress}>{ride.destinationAddress}</Text>
+            <Text style={styles.rideMeta}>Pago: {ride.paymentMethod === 'CASH' ? 'Efectivo' : 'Digital'} · {new Date(ride.requestedAt).toLocaleString('es-BO')}</Text>
+            {ride.status === 'REQUESTED' && <Pressable style={[styles.cancelButton, rideActionBusy && styles.disabled]} disabled={rideActionBusy} onPress={() => handleCancelRide(ride.id)}><Text style={styles.cancelText}>Cancelar solicitud</Text></Pressable>}
+          </View>)}
+        </View>
         <Text style={styles.footer}>Sind.19-Mar · La Paz</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-type FieldProps = {
+function passengerRideStatus(status: PassengerRide['status']) { return ({ REQUESTED: 'Buscando conductor', ACCEPTED: 'Conductor asignado', DRIVER_ARRIVING: 'Conductor en camino', IN_PROGRESS: 'Viaje en curso', COMPLETED: 'Viaje completado', CANCELLED: 'Viaje cancelado' })[status]; }\n\ntype FieldProps = {
   label: string; value: string; onChangeText: (value: string) => void;
   placeholder: string; secureTextEntry?: boolean; keyboardType?: 'default' | 'phone-pad';
 };
@@ -222,7 +229,7 @@ const styles = StyleSheet.create({
   selectedDot: { width: 21, height: 21, borderRadius: 11, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
   check: { color: C.white, fontSize: 12, fontWeight: '900' },
   notice: { color: C.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 10 },
-  historyButton: { backgroundColor: C.white, borderRadius: 14, padding: 16, marginTop: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E7EEE9' },
+  historyCard: { backgroundColor: C.white, borderRadius: 17, padding: 17, marginTop: 14, borderWidth: 1, borderColor: '#E7EEE9' },\n  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },\n  historyTitle: { color: C.ink, fontSize: 17, fontWeight: '800' },\n  refreshText: { color: C.green, fontSize: 12, fontWeight: '800' },\n  historyEmpty: { color: C.muted, fontSize: 12, marginTop: 13 },\n  rideItem: { borderTopWidth: 1, borderTopColor: C.line, marginTop: 13, paddingTop: 13 },\n  rideTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },\n  rideStatus: { color: C.dark, fontSize: 12, fontWeight: '900' },\n  rideFare: { color: C.green, fontSize: 14, fontWeight: '900' },\n  rideLabel: { color: C.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1, marginTop: 10 },\n  rideAddress: { color: C.ink, fontSize: 12, fontWeight: '700', marginTop: 3 },\n  rideMeta: { color: C.muted, fontSize: 10, marginTop: 9 },\n  cancelButton: { borderWidth: 1, borderColor: C.red, borderRadius: 10, padding: 11, alignItems: 'center', marginTop: 11 },\n  cancelText: { color: C.red, fontSize: 12, fontWeight: '800' },
   historyIcon: { color: C.green, fontSize: 21, marginRight: 12 },
   historyText: { flex: 1, color: C.ink, fontSize: 13, fontWeight: '700' },
   chevron: { color: C.muted, fontSize: 23 },
