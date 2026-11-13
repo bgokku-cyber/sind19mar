@@ -83,7 +83,6 @@ export class RidesService {
 
       const timestamp = new Date();
       const data: Prisma.RideUpdateManyMutationInput = { status: nextStatus };
-      if (nextStatus === RideStatus.DRIVER_ARRIVING) data.acceptedAt = ride.acceptedAt ?? timestamp;
       if (nextStatus === RideStatus.IN_PROGRESS) data.startedAt = timestamp;
       if (nextStatus === RideStatus.COMPLETED) data.completedAt = timestamp;
 
