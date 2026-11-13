@@ -42,7 +42,51 @@ Transiciones permitidas:
 3. `DRIVER_ARRIVING → IN_PROGRESS`.
 4. `IN_PROGRESS → COMPLETED`; al completar, el conductor vuelve a estar disponible.
 
-Las transiciones y reclamaciones críticas se validan en el servidor y usan transacciones. Las tarifas finales, liquidaciones y pasarela de pagos quedan pendientes de definición e implementación.
+Las transiciones y reclamaciones críticas se validan en el servidor y usan transacciones. Las tarifas finales, liquidaciones y pasarela de pagos quedan pendientes de definición e implementación. La moneda de todos los importes del piloto es BOB (bolivianos); las interfaces deben mostrar `Bs` y formato decimal español, nunca USD ni `# Contrato inicial de API
+
+Prefijo global: `/api`
+
+## Autenticación
+- `POST /api/auth/register/passenger` — registra pasajero con `fullName`, `phone`, `password`; devuelve token de acceso.
+- `POST /api/auth/register/driver` — registra conductor con los mismos campos más `licenseNumber`; el conductor puede iniciar sesión y registrar vehículo, pero no conectarse ni aceptar viajes hasta aprobación.
+- `POST /api/auth/register/fleet-manager` — recibe `fullName`, `phone`, `password`, `fleetName` y opcionalmente `legalName`; crea una solicitud pendiente. La cuenta no puede iniciar sesión hasta aprobación administrativa.
+- `POST /api/auth/login` — recibe `phone` y `password`; devuelve token Bearer válido por 12 horas.
+
+Contraseñas: mínimo 10 caracteres. El hash se guarda con bcrypt. La verificación de teléfono por SMS/OTP aún no está integrada; no considerar el registro listo para producción hasta elegir e integrar un proveedor y sus controles antifraude.
+
+## Conductores y vehículos (requiere Bearer)
+- `GET /api/drivers/me` — perfil y vehículos propios.
+- `POST /api/drivers/me/vehicles` — registra un vehículo propio; inicia inactivo, pendiente de aprobación.
+- `PATCH /api/drivers/me/availability` — cuerpo `{ "availability": "AVAILABLE" | "OFFLINE" }`; solo permite conectarse con cuenta, conductor y vehículo aprobados.
+
+## Administración (requiere cuenta ADMIN)
+- `GET /api/admin/drivers/pending` — conductores pendientes de verificación.
+- `PATCH /api/admin/vehicles/:id/approve` — aprueba un vehículo de un conductor todavía no verificado.
+- `PATCH /api/admin/drivers/:id/approve` — aprueba al conductor cuando tiene al menos un vehículo activo.
+- `PATCH /api/admin/users/:id/suspend` — suspende una cuenta y desconecta al conductor si corresponde.
+
+El primer administrador se crea de forma explícita con `npx prisma db seed`, definiendo `ADMIN_PHONE`, `ADMIN_PASSWORD` (mínimo 14 caracteres) y opcionalmente `ADMIN_NAME` en el entorno. Nunca se publica una ruta abierta para crear administradores.
+
+## Flotas
+- `GET /api/admin/fleets/pending` — lista solicitudes pendientes (ADMIN).
+- `PATCH /api/admin/fleets/:id/approve` — aprueba la flota y activa la cuenta de su responsable (ADMIN).
+- `GET /api/fleets/me` — consulta la flota y sus conductores (FLEET_MANAGER).
+- `POST /api/fleets/me/drivers` — cuerpo `{ "phone": "..." }`; asocia a la flota un conductor existente, aprobado y aún no asignado a otra flota. Solo flotas aprobadas pueden incorporar conductores.
+
+## Viajes (requiere Bearer)
+- `POST /api/rides` — crea una solicitud; el pasajero se obtiene de la sesión, no del cuerpo.
+- `GET /api/rides` — devuelve solo los viajes propios del pasajero o conductor autenticado.
+- `POST /api/rides/:id/accept` — conductor autenticado acepta un viaje disponible.
+- `POST /api/rides/:id/cancel` — pasajero cancela solo solicitudes aún no aceptadas; conductor cancela su viaje antes de iniciarlo; administrador puede cancelar antes del inicio. No se calculan penalidades ni cargos de cancelación en esta versión.
+- `POST /api/rides/:id/status` — cuerpo `{ "status": "DRIVER_ARRIVING" | "IN_PROGRESS" | "COMPLETED" }`; solo el conductor asignado puede avanzar el viaje.
+
+Transiciones permitidas:
+1. `REQUESTED → ACCEPTED` mediante aceptación del conductor verificado, activo, disponible y con vehículo aprobado.
+2. `ACCEPTED → DRIVER_ARRIVING`.
+3. `DRIVER_ARRIVING → IN_PROGRESS`.
+4. `IN_PROGRESS → COMPLETED`; al completar, el conductor vuelve a estar disponible.
+
+Las transiciones y reclamaciones críticas se validan en el servidor y usan transacciones. .
 
 ## Salud y convenciones
 - `GET /api/health` — comprueba que la API responde.
