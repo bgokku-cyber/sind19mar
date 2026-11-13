@@ -1,0 +1,32 @@
+name: Admin Web CI
+
+concurrency:
+  group: admin-web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/admin/**"
+      - ".github/workflows/admin-web-ci.yml"
+  pull_request:
+    paths:
+      - "apps/admin/**"
+      - ".github/workflows/admin-web-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/admin/package.json
+      - run: npm install
+      - run: npm run build
