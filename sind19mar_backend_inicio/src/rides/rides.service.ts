@@ -20,7 +20,8 @@ export class RidesService {
         destinationAddress: input.destinationAddress.trim(),
         destinationLatitude: new Prisma.Decimal(input.destinationLatitude),
         destinationLongitude: new Prisma.Decimal(input.destinationLongitude),
-        estimatedFare: input.estimatedFare === undefined ? undefined : new Prisma.Decimal(input.estimatedFare),
+        // La tarifa enviada por el cliente nunca se considera válida ni oficial.
+        // Se calculará en el servidor cuando se implemente el motor tarifario de La Paz.
         paymentMethod: input.paymentMethod as PaymentMethod,
       },
     });
