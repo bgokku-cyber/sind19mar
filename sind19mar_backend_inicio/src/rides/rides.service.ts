@@ -44,26 +44,23 @@ export class RidesService {
     if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
 
     return this.prisma.$transaction(async (tx) => {
-      const driver = await tx.driver.findUnique({ where: { id: driverId } });
-      if (!driver || !driver.verifiedAt) {
-        throw new NotFoundException('El conductor no existe o todavía no está verificado.');
-      }
-      if (driver.availability !== 'AVAILABLE') {
-        throw new ConflictException('El conductor no está disponible.');
+      // Reclama al conductor de forma atómica para impedir que acepte dos viajes simultáneos.
+      const driverClaim = await tx.driver.updateMany({
+        where: { id: driverId, availability: 'AVAILABLE', verifiedAt: { not: null } },
+        data: { availability: 'ON_TRIP' },
+      });
+      if (driverClaim.count !== 1) {
+        throw new ConflictException('El conductor no existe, no está verificado o no está disponible.');
       }
 
-      const result = await tx.ride.updateMany({
+      const rideClaim = await tx.ride.updateMany({
         where: { id: rideId, status: RideStatus.REQUESTED, driverId: null },
         data: { driverId, status: RideStatus.ACCEPTED, acceptedAt: new Date() },
       });
-      if (result.count !== 1) {
+      if (rideClaim.count !== 1) {
         throw new ConflictException('El viaje ya fue asignado o no está disponible.');
       }
 
-      await tx.driver.update({
-        where: { id: driverId },
-        data: { availability: 'ON_TRIP' },
-      });
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
     });
   }
