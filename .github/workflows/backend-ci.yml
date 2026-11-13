@@ -1,0 +1,34 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sind19mar_backend_inicio/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "sind19mar_backend_inicio/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sind19mar_backend_inicio
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/sind19mar?schema=public
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias
+        run: npm install
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+      - name: Compilar backend
+        run: npm run build
