@@ -39,7 +39,7 @@ export default function App() {
   async function changeAvailability() {
     if (!profile || profile.availability === 'ON_TRIP') return;
     setBusy(true);
-    try { setProfile(await setAvailability(profile.availability === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE')); }
+    try { await setAvailability(profile.availability === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE'); await refresh(); }
     catch (e) { Alert.alert('No se pudo cambiar', e instanceof Error ? e.message : 'Verifica tu aprobación y vehículo.'); }
     finally { setBusy(false); }
   }
