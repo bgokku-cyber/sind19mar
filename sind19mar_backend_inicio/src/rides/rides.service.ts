@@ -65,6 +65,45 @@ export class RidesService {
     });
   }
 
+  async cancel(rideId: string, actor: { role: string; passengerId?: string; driverId?: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findUnique({ where: { id: rideId } });
+      if (!ride) throw new NotFoundException('No se encontró el viaje.');
+
+      const cancellable = [RideStatus.REQUESTED, RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING];
+      if (!cancellable.includes(ride.status)) {
+        throw new ConflictException('Este viaje ya no puede cancelarse desde la aplicación.');
+      }
+
+      if (actor.role === 'PASSENGER') {
+        if (!actor.passengerId || ride.passengerId !== actor.passengerId || ride.status !== RideStatus.REQUESTED) {
+          throw new ConflictException('El pasajero solo puede cancelar su solicitud antes de que sea aceptada.');
+        }
+      } else if (actor.role === 'DRIVER') {
+        if (!actor.driverId || ride.driverId !== actor.driverId || ![RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING].includes(ride.status)) {
+          throw new ConflictException('El conductor solo puede cancelar un viaje propio antes de iniciarlo.');
+        }
+      } else if (actor.role !== 'ADMIN') {
+        throw new BadRequestException('Rol no autorizado para cancelar viajes.');
+      }
+
+      const changed = await tx.ride.updateMany({
+        where: { id: rideId, status: ride.status },
+        data: { status: RideStatus.CANCELLED, cancelledAt: new Date() },
+      });
+      if (changed.count !== 1) throw new ConflictException('El viaje cambió mientras se procesaba la cancelación.');
+
+      if (ride.driverId && (actor.role === 'DRIVER' || actor.role === 'ADMIN')) {
+        await tx.driver.updateMany({
+          where: { id: ride.driverId, availability: 'ON_TRIP' },
+          data: { availability: 'AVAILABLE' },
+        });
+      }
+
+      return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
+    });
+  }
+
   async advanceStatus(rideId: string, driverId: string, nextStatus: RideStatus) {
     if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
     const transitions: Partial<Record<RideStatus, RideStatus>> = {
