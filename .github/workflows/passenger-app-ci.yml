@@ -1,0 +1,36 @@
+name: Passenger App CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/passenger/**"
+      - ".github/workflows/passenger-app-ci.yml"
+  pull_request:
+    paths:
+      - "apps/passenger/**"
+      - ".github/workflows/passenger-app-ci.yml"
+
+concurrency:
+  group: passenger-app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/passenger
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/passenger/package.json
+      - name: Instalar dependencias
+        run: npm install
+      - name: Revisar tipos TypeScript
+        run: npm run typecheck
