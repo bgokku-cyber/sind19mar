@@ -19,3 +19,7 @@ No usar `localhost` en un teléfono físico: debe indicarse una dirección acces
 
 ## Funciones pendientes
 La pantalla de mapa es solo una maqueta visual. La solicitud de viajes permanece deshabilitada hasta integrar mapas, permisos de ubicación y coordenadas reales. También faltan historial conectado, seguimiento en vivo, notificaciones y pruebas en dispositivos Android.
+
+
+## Moneda
+La moneda de operación de Sind.19-Mar en Bolivia es el boliviano (BOB). Los importes visibles deben mostrarse con el prefijo `Bs` (por ejemplo, `Bs 25,00`) y formato decimal español. No presentar tarifas en dólares estadounidenses (USD) ni usar el símbolo `$` para precios.
