@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { AccountStatus, UserRole } from '@prisma/client';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -51,6 +51,28 @@ export class AuthService {
       return { ...await this.issueToken(user), message: 'Cuenta creada. Queda pendiente la revisión administrativa antes de conducir.' };
     } catch (error: any) {
       if (error?.code === 'P2002') throw new ConflictException('El teléfono o la licencia ya están registrados.');
+      throw error;
+    }
+  }
+
+  async registerFleetManager(input: any) {
+    this.validateRegistration(input);
+    if (typeof input.fleetName !== 'string' || input.fleetName.trim().length < 2 || input.fleetName.trim().length > 100) {
+      throw new BadRequestException('El nombre de la flota debe tener entre 2 y 100 caracteres.');
+    }
+    const phone = this.normalizePhone(input.phone);
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    try {
+      await this.prisma.user.create({
+        data: {
+          phone, fullName: input.fullName.trim(), passwordHash,
+          role: UserRole.FLEET_MANAGER, status: AccountStatus.PENDING,
+          managedFleet: { create: { name: input.fleetName.trim(), legalName: typeof input.legalName === 'string' ? input.legalName.trim().slice(0, 120) || null : null } },
+        },
+      });
+      return { success: true, message: 'Solicitud de registro recibida. La administración debe aprobar la cuenta y la flota antes de habilitar el acceso.' };
+    } catch (error: any) {
+      if (error?.code === 'P2002') throw new ConflictException('Ese teléfono ya está registrado.');
       throw error;
     }
   }
