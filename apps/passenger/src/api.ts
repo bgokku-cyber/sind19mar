@@ -62,3 +62,22 @@ export async function restoreSession() {
 export async function logout() {
   await AsyncStorage.removeItem(TOKEN_KEY);
 }
+
+
+export type PassengerRide = {
+  id: string;
+  status: 'REQUESTED' | 'ACCEPTED' | 'DRIVER_ARRIVING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  originAddress: string;
+  destinationAddress: string;
+  estimatedFare: string | number | null;
+  paymentMethod: 'CASH' | 'DIGITAL';
+  requestedAt: string;
+};
+
+export async function getMyRides() {
+  return request<PassengerRide[]>('/rides');
+}
+
+export async function cancelRide(rideId: string) {
+  return request<PassengerRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
