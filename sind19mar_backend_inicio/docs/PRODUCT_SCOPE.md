@@ -27,7 +27,7 @@ Plataforma de transporte para el piloto inicial en La Paz, Bolivia. La identidad
 - Registrar cambios de estado y marcas de tiempo.
 - No almacenar datos de tarjetas ni credenciales de pago.
 - Proteger datos personales y ubicación; mostrar ubicación solo cuando sea necesaria para el viaje.
-- Los importes se almacenan como decimales y deben definirse en moneda local antes de producción.
+- La moneda oficial de operación del piloto en Bolivia es el boliviano (BOB). Todos los importes de viajes, tarifas, pagos, liquidaciones y reportes se expresan en bolivianos y se muestran con el prefijo `Bs` (por ejemplo, `Bs 25,00`); no convertir ni presentar importes en dólares estadounidenses (USD). Los importes se almacenan como decimales.
 
 ## Etapas de entrega
 1. Base técnica, API y modelo de datos.
