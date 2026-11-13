@@ -21,7 +21,7 @@ export class FleetsService {
     if (!fleet) throw new NotFoundException('No se encontró la flota.');
     if (fleet.status !== FleetStatus.ACTIVE) throw new ForbiddenException('La flota debe estar aprobada para incorporar conductores.');
     const driver = await this.prisma.driver.findFirst({
-      where: { user: { phone: phone.replace(/[\\s()-]/g, ''), role: 'DRIVER', status: 'ACTIVE' }, verifiedAt: { not: null }, fleetId: null },
+      where: { user: { phone: phone.replace(/[\s()-]/g, ''), role: 'DRIVER', status: 'ACTIVE' }, verifiedAt: { not: null }, fleetId: null },
     });
     if (!driver) throw new NotFoundException('No se encontró un conductor aprobado y disponible para asociar.');
     const result = await this.prisma.driver.updateMany({ where: { id: driver.id, fleetId: null }, data: { fleetId: fleet.id } });
