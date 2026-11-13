@@ -35,7 +35,7 @@ export class RidesController {
   advanceStatus(@Param('id') id: string, @Body('status') status: RideStatus, @Req() request: any) {
     if (request.user.role !== UserRole.DRIVER || !request.user.driver) throw new ForbiddenException('Solo el conductor asignado puede actualizar el viaje.');
     const allowedStatuses = [RideStatus.DRIVER_ARRIVING, RideStatus.IN_PROGRESS, RideStatus.COMPLETED];
-    if (!allowedStatuses.includes(status)) throw new BadRequestException('Estado solicitado no válido para esta operación.');
+    if (!(allowedStatuses as RideStatus[]).includes(status)) throw new BadRequestException('Estado solicitado no válido para esta operación.');
     return this.ridesService.advanceStatus(id, request.user.driver.id, status);
   }
 }
