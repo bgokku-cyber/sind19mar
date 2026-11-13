@@ -1,0 +1,219 @@
+import React, { useState } from 'react';
+import {
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
+} from 'react-native';
+import { login, logout, register } from './src/api';
+
+const C = {
+  dark: '#073B2B',
+  green: '#16A34A',
+  bright: '#28C76F',
+  pale: '#EAF7EF',
+  white: '#FFFFFF',
+  ink: '#14231B',
+  muted: '#718078',
+  line: '#DCE8E0',
+  bg: '#F5F8F6',
+  red: '#B42318',
+};
+
+type Mode = 'login' | 'register';
+
+export default function App() {
+  const [mode, setMode] = useState<Mode>('login');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
+
+  async function submitAuth() {
+    if (!phone.trim() || !password) {
+      Alert.alert('Faltan datos', 'Ingresa tu número de teléfono y contraseña.');
+      return;
+    }
+    if (mode === 'register' && name.trim().length < 3) {
+      Alert.alert('Nombre incompleto', 'Escribe tu nombre completo.');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (mode === 'login') await login(phone.trim(), password);
+      else await register(name.trim(), phone.trim(), password);
+      setAuthenticated(true);
+    } catch (error) {
+      Alert.alert('No pudimos continuar', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOut() {
+    await logout();
+    setAuthenticated(false);
+    setPassword('');
+  }
+
+  if (!authenticated) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={C.dark} />
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.brandPanel}>
+              <View style={styles.logoMark}><Text style={styles.logoGlyph}>19</Text></View>
+              <Text style={styles.brandTitle}>Sind.19-Mar</Text>
+              <Text style={styles.brandSubtitle}>Tu viaje, más cerca.</Text>
+              <View style={styles.brandLine} />
+              <Text style={styles.brandSmall}>TRANSPORTE SEGURO Y CONFIABLE</Text>
+            </View>
+            <View style={styles.authCard}>
+              <Text style={styles.heading}>{mode === 'login' ? 'Bienvenido' : 'Crear cuenta'}</Text>
+              <Text style={styles.subheading}>{mode === 'login' ? 'Ingresa para solicitar tu viaje.' : 'Regístrate como pasajero en unos pasos.'}</Text>
+              {mode === 'register' && (
+                <Field label="Nombre completo" value={name} onChangeText={setName} placeholder="Tu nombre" />
+              )}
+              <Field label="Número de teléfono" value={phone} onChangeText={setPhone} placeholder="Ej. 70000000" keyboardType="phone-pad" />
+              <Field label="Contraseña" value={password} onChangeText={setPassword} placeholder="Mínimo 10 caracteres" secureTextEntry />
+              <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={submitAuth} disabled={busy}>
+                {busy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Iniciar sesión' : 'Crear mi cuenta'}</Text>}
+              </Pressable>
+              <Pressable onPress={() => setMode(mode === 'login' ? 'register' : 'login')} style={styles.switchButton}>
+                <Text style={styles.switchText}>{mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}<Text style={styles.switchStrong}>{mode === 'login' ? 'Regístrate' : 'Inicia sesión'}</Text></Text>
+              </Pressable>
+              <Text style={styles.legal}>Al continuar, aceptas las condiciones del servicio y el tratamiento de datos necesario para gestionar tus viajes.</Text>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeHome}>
+      <StatusBar barStyle="light-content" backgroundColor={C.dark} />
+      <View style={styles.homeHeader}>
+        <View>
+          <Text style={styles.headerEyebrow}>SIND.19-MAR</Text>
+          <Text style={styles.headerTitle}>¿A dónde vamos?</Text>
+        </View>
+        <Pressable onPress={signOut} style={styles.avatar}><Text style={styles.avatarText}>↪</Text></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.mapCard}>
+          <View style={styles.mapGrid}>
+            {Array.from({ length: 6 }).map((_, i) => <View key={i} style={[styles.road, { top: 22 + i * 29, transform: [{ rotate: i % 2 ? '-8deg' : '7deg' }] }]} />)}
+            {Array.from({ length: 5 }).map((_, i) => <View key={`v${i}`} style={[styles.roadVertical, { left: 24 + i * 66, transform: [{ rotate: '12deg' }] }]} />)}
+            <View style={styles.mapPin}><Text style={styles.mapPinText}>●</Text></View>
+          </View>
+          <View style={styles.mapCaption}><Text style={styles.mapCaptionTitle}>La Paz, Bolivia</Text><Text style={styles.mapCaptionText}>Vista previa · mapa por integrar</Text></View>
+        </View>
+        <View style={styles.tripCard}>
+          <Text style={styles.tripTitle}>Solicita tu viaje</Text>
+          <Text style={styles.tripHint}>Indica dónde te recogemos y tu destino.</Text>
+          <Field label="Punto de partida" value={origin} onChangeText={setOrigin} placeholder="¿Dónde te recogemos?" />
+          <Field label="Destino" value={destination} onChangeText={setDestination} placeholder="¿A dónde quieres ir?" />
+          <View style={styles.paymentRow}>
+            <View style={styles.cashIcon}><Text style={styles.cashGlyph}>Bs</Text></View>
+            <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo</Text><Text style={styles.paymentHint}>Otras opciones se habilitarán más adelante</Text></View>
+            <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
+          </View>
+          <Pressable style={[styles.primaryButton, styles.disabled]} disabled>
+            <Text style={styles.primaryButtonText}>Buscar conductor</Text>
+          </Pressable>
+          <Text style={styles.notice}>La solicitud se habilitará cuando conectemos los mapas y la ubicación real. No mostraremos ubicaciones inventadas.</Text>
+        </View>
+        <Pressable onPress={() => Alert.alert('Próximamente', 'Aquí encontrarás tus viajes anteriores cuando terminemos el módulo de historial.')} style={styles.historyButton}>
+          <Text style={styles.historyIcon}>◷</Text><Text style={styles.historyText}>Mis viajes</Text><Text style={styles.chevron}>›</Text>
+        </Pressable>
+        <Text style={styles.footer}>Sind.19-Mar · La Paz</Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+type FieldProps = {
+  label: string; value: string; onChangeText: (value: string) => void;
+  placeholder: string; secureTextEntry?: boolean; keyboardType?: 'default' | 'phone-pad';
+};
+
+function Field({ label, value, onChangeText, placeholder, secureTextEntry, keyboardType = 'default' }: FieldProps) {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9AA79F"
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+        style={styles.input}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: C.dark },
+  safeHome: { flex: 1, backgroundColor: C.bg },
+  authContent: { flexGrow: 1, backgroundColor: C.bg, paddingBottom: 28 },
+  brandPanel: { backgroundColor: C.dark, paddingTop: 42, paddingBottom: 54, paddingHorizontal: 28, alignItems: 'center', borderBottomLeftRadius: 34, borderBottomRightRadius: 34 },
+  logoMark: { width: 68, height: 68, borderRadius: 22, backgroundColor: C.bright, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#8DE5B0' },
+  logoGlyph: { color: C.dark, fontSize: 25, fontWeight: '900', letterSpacing: -1 },
+  brandTitle: { color: C.white, fontSize: 28, fontWeight: '800', marginTop: 14, letterSpacing: 0.2 },
+  brandSubtitle: { color: '#CBE8D6', fontSize: 15, marginTop: 5 },
+  brandLine: { height: 3, width: 42, borderRadius: 3, backgroundColor: C.bright, marginTop: 23, marginBottom: 12 },
+  brandSmall: { color: '#A7D9BA', fontSize: 9, fontWeight: '800', letterSpacing: 2 },
+  authCard: { backgroundColor: C.white, marginHorizontal: 18, marginTop: -25, borderRadius: 22, padding: 22, shadowColor: '#0B3D2C', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  heading: { color: C.ink, fontSize: 24, fontWeight: '800' },
+  subheading: { color: C.muted, fontSize: 13, marginTop: 6, marginBottom: 18 },
+  fieldWrap: { marginBottom: 15 },
+  fieldLabel: { color: C.ink, fontSize: 12, fontWeight: '700', marginBottom: 7 },
+  input: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: '#FBFDFC', paddingHorizontal: 14, color: C.ink, fontSize: 14 },
+  primaryButton: { height: 52, borderRadius: 13, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  primaryButtonText: { color: C.white, fontSize: 15, fontWeight: '800' },
+  pressed: { opacity: 0.86 },
+  disabled: { opacity: 0.48 },
+  switchButton: { alignItems: 'center', paddingVertical: 17 },
+  switchText: { color: C.muted, fontSize: 13 },
+  switchStrong: { color: C.green, fontWeight: '800' },
+  legal: { color: '#9AA79F', fontSize: 10, textAlign: 'center', lineHeight: 15, marginTop: 1 },
+  homeHeader: { backgroundColor: C.dark, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 25, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerEyebrow: { color: '#9EDDB8', fontSize: 10, fontWeight: '800', letterSpacing: 2 },
+  headerTitle: { color: C.white, fontSize: 24, fontWeight: '800', marginTop: 5 },
+  avatar: { width: 42, height: 42, borderRadius: 15, backgroundColor: '#195C43', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: C.white, fontSize: 22, fontWeight: '700' },
+  homeContent: { padding: 18, paddingBottom: 28 },
+  mapCard: { height: 184, borderRadius: 19, overflow: 'hidden', backgroundColor: '#DCEBDD', marginBottom: 17, borderWidth: 1, borderColor: '#CDE1D1' },
+  mapGrid: { flex: 1, overflow: 'hidden', backgroundColor: '#E7F0E5' },
+  road: { position: 'absolute', left: -25, right: -25, height: 11, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#D1DED1' },
+  roadVertical: { position: 'absolute', top: -25, bottom: -25, width: 9, backgroundColor: '#FFFFFF', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#D1DED1' },
+  mapPin: { position: 'absolute', left: '48%', top: '38%', width: 34, height: 34, borderRadius: 17, backgroundColor: C.green, borderWidth: 4, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  mapPinText: { color: C.white, fontSize: 10 },
+  mapCaption: { position: 'absolute', bottom: 10, left: 12, backgroundColor: C.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  mapCaptionTitle: { color: C.dark, fontSize: 11, fontWeight: '800' },
+  mapCaptionText: { color: C.muted, fontSize: 9, marginTop: 2 },
+  tripCard: { backgroundColor: C.white, borderRadius: 19, padding: 18, borderWidth: 1, borderColor: '#E7EEE9' },
+  tripTitle: { color: C.ink, fontSize: 19, fontWeight: '800' },
+  tripHint: { color: C.muted, fontSize: 12, marginTop: 4, marginBottom: 17 },
+  paymentRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.pale, borderRadius: 12, padding: 11, marginBottom: 13 },
+  cashIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: '#CFF0DB', alignItems: 'center', justifyContent: 'center' },
+  cashGlyph: { color: C.dark, fontSize: 13, fontWeight: '900' },
+  paymentText: { flex: 1, marginLeft: 10 },
+  paymentTitle: { color: C.dark, fontSize: 12, fontWeight: '800' },
+  paymentHint: { color: C.muted, fontSize: 9, marginTop: 3 },
+  selectedDot: { width: 21, height: 21, borderRadius: 11, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' },
+  check: { color: C.white, fontSize: 12, fontWeight: '900' },
+  notice: { color: C.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 10 },
+  historyButton: { backgroundColor: C.white, borderRadius: 14, padding: 16, marginTop: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E7EEE9' },
+  historyIcon: { color: C.green, fontSize: 21, marginRight: 12 },
+  historyText: { flex: 1, color: C.ink, fontSize: 13, fontWeight: '700' },
+  chevron: { color: C.muted, fontSize: 23 },
+  footer: { color: '#9AA79F', fontSize: 10, textAlign: 'center', marginTop: 20 },
+});
