@@ -20,6 +20,12 @@ enum AccountStatus {
   SUSPENDED
 }
 
+enum FleetStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
 enum DriverAvailability {
   OFFLINE
   AVAILABLE
@@ -58,6 +64,7 @@ model User {
   updatedAt    DateTime      @updatedAt
   passenger    Passenger?
   driver       Driver?
+  managedFleet Fleet?
 }
 
 model Passenger {
@@ -68,17 +75,33 @@ model Passenger {
   createdAt DateTime @default(now())
 }
 
+model Fleet {
+  id            String      @id @default(cuid())
+  name          String
+  legalName     String?
+  managerUserId String      @unique
+  manager       User        @relation(fields: [managerUserId], references: [id])
+  status        FleetStatus @default(PENDING)
+  drivers       Driver[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
 model Driver {
-  id           String             @id @default(cuid())
-  userId       String             @unique
-  user         User               @relation(fields: [userId], references: [id])
-  availability DriverAvailability @default(OFFLINE)
-  licenseNumber String            @unique
-  verifiedAt   DateTime?
-  vehicles     Vehicle[]
-  rides        Ride[]             @relation("DriverRides")
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id            String             @id @default(cuid())
+  userId        String             @unique
+  user          User               @relation(fields: [userId], references: [id])
+  fleetId       String?
+  fleet         Fleet?             @relation(fields: [fleetId], references: [id], onDelete: SetNull)
+  availability  DriverAvailability @default(OFFLINE)
+  licenseNumber String             @unique
+  verifiedAt    DateTime?
+  vehicles      Vehicle[]
+  rides         Ride[]             @relation("DriverRides")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([fleetId])
 }
 
 model Vehicle {
@@ -95,28 +118,28 @@ model Vehicle {
 }
 
 model Ride {
-  id                String      @id @default(cuid())
-  passengerId       String
-  passenger         Passenger   @relation("PassengerRides", fields: [passengerId], references: [id])
-  driverId          String?
-  driver            Driver?     @relation("DriverRides", fields: [driverId], references: [id])
-  status            RideStatus  @default(REQUESTED)
-  originAddress     String
-  originLatitude    Decimal     @db.Decimal(10, 7)
-  originLongitude   Decimal     @db.Decimal(10, 7)
-  destinationAddress String
-  destinationLatitude Decimal   @db.Decimal(10, 7)
-  destinationLongitude Decimal  @db.Decimal(10, 7)
-  estimatedFare     Decimal?    @db.Decimal(10, 2)
-  finalFare         Decimal?    @db.Decimal(10, 2)
-  paymentMethod     PaymentMethod
-  paymentStatus     PaymentStatus @default(PENDING)
-  requestedAt       DateTime    @default(now())
-  acceptedAt        DateTime?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  cancelledAt       DateTime?
-  updatedAt         DateTime    @updatedAt
+  id                  String        @id @default(cuid())
+  passengerId         String
+  passenger           Passenger     @relation("PassengerRides", fields: [passengerId], references: [id])
+  driverId            String?
+  driver              Driver?       @relation("DriverRides", fields: [driverId], references: [id])
+  status              RideStatus    @default(REQUESTED)
+  originAddress       String
+  originLatitude      Decimal       @db.Decimal(10, 7)
+  originLongitude     Decimal       @db.Decimal(10, 7)
+  destinationAddress  String
+  destinationLatitude Decimal       @db.Decimal(10, 7)
+  destinationLongitude Decimal      @db.Decimal(10, 7)
+  estimatedFare       Decimal?      @db.Decimal(10, 2)
+  finalFare           Decimal?      @db.Decimal(10, 2)
+  paymentMethod       PaymentMethod
+  paymentStatus       PaymentStatus @default(PENDING)
+  requestedAt         DateTime      @default(now())
+  acceptedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  updatedAt           DateTime      @updatedAt
 
   @@index([passengerId, requestedAt])
   @@index([driverId, status])
