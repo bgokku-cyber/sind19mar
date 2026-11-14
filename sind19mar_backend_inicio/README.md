@@ -45,7 +45,7 @@ MAP_CENTER_LONGITUDE="-68.15"
 MAP_DEFAULT_ZOOM="12"
 MAP_COVERAGE_RADIUS_KM="25"
 MAP_PROVIDER="openstreetmap"
-MAP_TILE_URL_TEMPLATE="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+MAP_TILE_URL_TEMPLATE="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 ```
 
 La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`. La detección GPS y el selector manual deben implementarse en las apps; este endpoint sólo centraliza la configuración y no activa por sí mismo la navegación ni el cálculo de rutas. Respeta las condiciones de uso y atribución del proveedor de teselas elegido.
