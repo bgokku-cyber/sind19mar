@@ -77,11 +77,11 @@ export default function App() {
     } finally { setLocationBusy(false); }
   }
 
-  async function confirmRideRequest(target: { latitude: number; longitude: number }) {
+  async function confirmRideRequest(target: { latitude: number; longitude: number }, quoteToken: string) {
     if (!originCoordinates) return;
     setRideActionBusy(true);
     try {
-      await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH', routeQuoteToken: routeQuote?.quoteToken || '' });
+      await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH', routeQuoteToken: quoteToken });
       setRouteQuote(null);
       await refreshRides();
       Alert.alert('Solicitud enviada', 'Tu solicitud fue registrada. Los conductores disponibles podrán aceptarla.');
@@ -108,7 +108,7 @@ export default function App() {
       if (!quote.fare || !quote.quoteToken) { Alert.alert('Ruta calculada', 'Distancia vial: ' + quote.distanceKm.toFixed(2) + ' km · Tiempo estimado: ' + quote.durationMinutes + ' min. ' + (quote.fareUnavailableReason || 'La tarifa oficial no está configurada.')); return; }
       Alert.alert('Confirmar solicitud', 'Distancia: ' + quote.distanceKm.toFixed(2) + ' km\nTiempo estimado: ' + quote.durationMinutes + ' min\nTarifa estimada: Bs ' + quote.fare.amount.toFixed(2).replace('.', ',') + '\n\n¿Deseas solicitar este viaje?', [
         { text: 'Ahora no', style: 'cancel' },
-        { text: 'Solicitar viaje', onPress: () => { void confirmRideRequest(target!); } },
+        { text: 'Solicitar viaje', onPress: () => { void confirmRideRequest(target!, quote.quoteToken!); } },
       ]);
     } catch (error) { Alert.alert('No se pudo cotizar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); }
     finally { setRideActionBusy(false); }
