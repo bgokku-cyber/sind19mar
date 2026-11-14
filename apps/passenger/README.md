@@ -26,3 +26,6 @@ La pantalla de mapa sigue siendo una maqueta visual: todavía no hay mapa intera
 
 ## Moneda
 La moneda de operación de Sind.19-Mar en Bolivia es el boliviano (BOB). Los importes visibles deben mostrarse con el prefijo `Bs` (por ejemplo, `Bs 25,00`) y formato decimal español. No presentar tarifas en dólares estadounidenses (USD) ni usar el símbolo `$` para precios.
+
+
+Mapa interactivo: la app del pasajero permite seleccionar destino tocando el mapa; la app del conductor muestra el mapa de la zona y permite ubicar su posición local con GPS. La ubicación del conductor todavía no se transmite al backend. El proveedor de teselas se configura desde la API; el servidor público estándar de OpenStreetMap es sólo para pruebas/piloto de bajo volumen y debe sustituirse por un proveedor contratado o infraestructura propia antes de producción. Se conserva la atribución © OpenStreetMap contributors.
