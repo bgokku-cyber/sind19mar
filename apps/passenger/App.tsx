@@ -185,6 +185,7 @@ export default function App() {
         <View style={styles.mapCard}>
           <MapView
             style={StyleSheet.absoluteFill}
+            key={originCoordinates ? 'pickup-map' : (mapConfig ? 'configured-map' : 'default-map')}
             initialRegion={{
               latitude: originCoordinates?.latitude ?? mapConfig?.center.latitude ?? -16.5,
               longitude: originCoordinates?.longitude ?? mapConfig?.center.longitude ?? -68.15,
@@ -202,7 +203,7 @@ export default function App() {
               }).catch(() => setDestination(point.latitude.toFixed(6) + ', ' + point.longitude.toFixed(6)));
             }}
           >
-            <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} />
+            <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'} />
             {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
             {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
           </MapView>
