@@ -1,33 +1,37 @@
 # Sind.19-Mar — Aplicación del pasajero
 
-Aplicación Android construida con Expo y React Native.
+Aplicación Android desarrollada con Expo SDK 57 y React Native. Mantiene la identidad visual verde oscuro, verde brillante y blanco.
 
-## Incluye en esta primera entrega
-- Pantalla de inicio de sesión y registro de pasajeros.
-- Conexión con los endpoints `/api/auth/login` y `/api/auth/register/passenger`.
-- Almacenamiento local del token de sesión.
-- Pantalla inicial con campos de origen y destino, y método de pago en efectivo.
-- Permiso de ubicación en primer plano con Expo Location (SDK 57).
-- Captura de GPS para el punto de recogida y geocodificación del destino escrito.
-- Validación preliminar del radio de cobertura antes de habilitar futuras solicitudes.
-- Diseño adaptable con la identidad verde oscuro, verde brillante y blanco.
+## Funciones implementadas
+- Registro e inicio de sesión de pasajeros y persistencia de sesión.
+- Obtención del origen mediante GPS en primer plano y geocodificación de direcciones.
+- Mapa interactivo configurable desde `GET /api/maps/config`, con selección del destino tocando el mapa.
+- Consulta de rutas viales, distancia y duración estimada mediante la API.
+- Presentación de tarifas en bolivianos (Bs) cuando el sindicato ha configurado la tarifa oficial.
+- Confirmación explícita antes de enviar una solicitud de viaje.
+- Historial y actualización periódica del estado de los viajes.
+- Visualización de la ubicación reciente del conductor asignado durante el viaje activo.
+- Cancelación de solicitudes propias cuando el estado lo permite.
 
-## Configuración
-1. Copiar `.env.example` como `.env`.
-2. Definir `EXPO_PUBLIC_API_URL` con la URL HTTPS pública de la API, terminada en `/api`.
-3. Instalar dependencias con `npm install`.
-4. Ejecutar `npx expo start` y abrir el proyecto con Expo Go o un emulador Android.
+## Configuración local
+1. Copia `.env.example` como `.env`.
+2. Define `EXPO_PUBLIC_API_URL` con la URL accesible de la API y el prefijo `/api`. En un teléfono físico no uses `localhost`; usa la IP LAN del equipo o una URL HTTPS.
+3. Ejecuta `npm install` y `npx expo start`.
+4. Autoriza ubicación en primer plano.
 
-No usar `localhost` en un teléfono físico: debe indicarse una dirección accesible desde el dispositivo.
+## Compilar APK de prueba
+Requiere una cuenta Expo/EAS y vincular este proyecto con un proyecto EAS:
+1. Instala EAS CLI: `npm install -g eas-cli`.
+2. Inicia sesión: `eas login`.
+3. Vincula el proyecto una sola vez con `eas init` y conserva el `projectId` generado en la configuración Expo.
+4. Ejecuta `eas build --platform android --profile preview`. El perfil `preview` genera un APK instalable para pruebas.
+5. Para una publicación de tienda, usa `eas build --platform android --profile production`; ese perfil genera un Android App Bundle.
 
-## Funciones pendientes
-La pantalla de mapa sigue siendo una maqueta visual: todavía no hay mapa interactivo, selección de puntos sobre el mapa ni rutas. El GPS y la geocodificación permiten validar coordenadas reales, pero el botón no crea un viaje ni busca conductores hasta completar la integración cartográfica y el flujo operativo de conductor. Faltan seguimiento en vivo, notificaciones y pruebas en dispositivos Android.
+La compilación remota requiere credenciales y configuración de firma gestionadas por la cuenta Expo del propietario. No incluyas secretos en Git.
 
-
-## Moneda
-La moneda de operación de Sind.19-Mar en Bolivia es el boliviano (BOB). Los importes visibles deben mostrarse con el prefijo `Bs` (por ejemplo, `Bs 25,00`) y formato decimal español. No presentar tarifas en dólares estadounidenses (USD) ni usar el símbolo `$` para precios.
-
-
-Mapa interactivo: la app del pasajero permite seleccionar destino tocando el mapa; la app del conductor muestra el mapa de la zona y permite ubicar su posición local con GPS. La ubicación del conductor todavía no se transmite al backend. El proveedor de teselas se configura desde la API; el servidor público estándar de OpenStreetMap es sólo para pruebas/piloto de bajo volumen y debe sustituirse por un proveedor contratado o infraestructura propia antes de producción. Se conserva la atribución © OpenStreetMap contributors.
-
-El mapa interactivo utiliza `react-native-maps` con una capa de teselas configurable desde `GET /api/maps/config`. Los marcadores de recogida y destino se visualizan en el mapa y el pasajero puede tocar el mapa para seleccionar el destino. El mapa del conductor muestra la zona y permite centrarlo en su GPS local. La ubicación del conductor no se transmite al backend todavía. La URL de teselas admite `{z}`, `{x}` y `{y}`. El servidor estándar público de OpenStreetMap no debe usarse como servicio de producción o alto volumen; antes del lanzamiento se debe configurar un proveedor de teselas apropiado y respetar la atribución.
+## Límites conocidos
+- GPS del pasajero y del conductor funciona en primer plano; no hay seguimiento de ubicación en segundo plano.
+- La tarifa no se habilita hasta que el sindicato confirme y configure sus importes oficiales en el backend.
+- El servidor público de OSRM y las teselas estándar de OpenStreetMap son sólo para pruebas de bajo volumen. Producción requiere proveedor o infraestructura apropiados y respetar sus condiciones y atribución.
+- No se integran pagos digitales ni notificaciones push.
+- Antes de producción deben completarse pruebas integrales en dispositivos reales y una revisión de seguridad/operación.
