@@ -16,7 +16,7 @@ export class AuthService {
     if (!input || typeof input !== 'object') throw new BadRequestException('Datos de registro no válidos.');
     if (typeof input.fullName !== 'string' || input.fullName.trim().length < 3 || input.fullName.trim().length > 100) throw new BadRequestException('El nombre debe tener entre 3 y 100 caracteres.');
     if (typeof input.phone !== 'string' || this.normalizePhone(input.phone).length < 7 || this.normalizePhone(input.phone).length > 20) throw new BadRequestException('El teléfono no es válido.');
-    if (typeof input.password !== 'string' || input.password.length < 10 || input.password.length > 72) throw new BadRequestException('La contraseña debe tener entre 10 y 72 caracteres.');
+    if (typeof input.password !== 'string' || input.password.length < 10 || Buffer.byteLength(input.password, 'utf8') > 72) throw new BadRequestException('La contraseña debe tener al menos 10 caracteres y un máximo de 72 bytes.');
   }
 
   private async issueToken(user: { id: string; role: UserRole; status: AccountStatus }) {
@@ -79,7 +79,10 @@ export class AuthService {
 
   async login(input: any) {
     if (!input || typeof input.phone !== 'string' || typeof input.password !== 'string') throw new BadRequestException('Teléfono y contraseña son obligatorios.');
-    const user = await this.prisma.user.findUnique({ where: { phone: this.normalizePhone(input.phone) } });
+    const phone = this.normalizePhone(input.phone);
+    if (phone.length < 7 || phone.length > 20) throw new BadRequestException('El teléfono no es válido.');
+    if (input.password.length === 0 || Buffer.byteLength(input.password, 'utf8') > 72) throw new BadRequestException('La contraseña no es válida.');
+    const user = await this.prisma.user.findUnique({ where: { phone } });
     if (!user?.passwordHash || !(await bcrypt.compare(input.password, user.passwordHash))) throw new UnauthorizedException('Credenciales incorrectas.');
     if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException('La cuenta está pendiente de aprobación o suspendida.');
     return this.issueToken(user);

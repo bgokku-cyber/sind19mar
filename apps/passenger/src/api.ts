@@ -72,6 +72,7 @@ export type PassengerRide = {
   estimatedFare: string | number | null;
   paymentMethod: 'CASH' | 'DIGITAL';
   requestedAt: string;
+  driver?: { location: { latitude: string | number; longitude: string | number; recordedAt: string } | null } | null;
 };
 
 export async function getMyRides() {
@@ -80,4 +81,84 @@ export async function getMyRides() {
 
 export async function cancelRide(rideId: string) {
   return request<PassengerRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
+
+export type CreatePassengerRideInput = {
+  originAddress: string;
+  originLatitude: number;
+  originLongitude: number;
+  destinationAddress: string;
+  destinationLatitude: number;
+  destinationLongitude: number;
+  paymentMethod: 'CASH' | 'DIGITAL';
+  routeQuoteToken: string;
+};
+
+/** Crea una solicitud usando coordenadas reales; la identidad del pasajero la obtiene la API del token. */
+export async function createRide(input: CreatePassengerRideInput) {
+  const addresses = [input.originAddress, input.destinationAddress];
+  if (addresses.some((address) => typeof address !== 'string' || !address.trim())) {
+    throw new Error('Debes indicar el origen y el destino.');
+  }
+  const coordinates = [
+    input.originLatitude, input.originLongitude,
+    input.destinationLatitude, input.destinationLongitude,
+  ];
+  if (!coordinates.every(Number.isFinite)) {
+    throw new Error('Selecciona ubicaciones con coordenadas válidas.');
+  }
+  if (input.originLatitude < -90 || input.originLatitude > 90 ||
+      input.destinationLatitude < -90 || input.destinationLatitude > 90 ||
+      input.originLongitude < -180 || input.originLongitude > 180 ||
+      input.destinationLongitude < -180 || input.destinationLongitude > 180) {
+    throw new Error('Las coordenadas de origen o destino están fuera de rango.');
+  }
+  return request<PassengerRide>('/rides', {
+    method: 'POST',
+    body: JSON.stringify({
+      originAddress: input.originAddress.trim(),
+      originLatitude: input.originLatitude,
+      originLongitude: input.originLongitude,
+      destinationAddress: input.destinationAddress.trim(),
+      destinationLatitude: input.destinationLatitude,
+      destinationLongitude: input.destinationLongitude,
+      paymentMethod: input.paymentMethod,
+      routeQuoteToken: input.routeQuoteToken,
+    }),
+  });
+}
+
+
+export type MapConfig = {
+  city: string;
+  country: string;
+  center: { latitude: number; longitude: number };
+  defaultZoom: number;
+  coverageRadiusKm: number;
+  provider: string;
+  tileUrlTemplate: string;
+  locationMode: 'gps_or_manual';
+  attributionRequired: boolean;
+};
+
+/** Configuración geográfica central compartida por las aplicaciones. */
+export async function getMapConfig() {
+  return request<MapConfig>('/maps/config');
+}
+
+
+export type RouteQuote = {
+  provider: string;
+  distanceKm: number;
+  durationMinutes: number;
+  geometry: { type: 'LineString'; coordinates: [number, number][] } | null;
+  fare: { currency: 'BOB'; distanceKm: number; amount: number; pricingVersion: string } | null;
+  fareUnavailableReason: string | null;
+  quoteToken: string | null;
+};
+
+/** Cotización vial calculada por el backend; no calcula precios en el dispositivo. */
+export async function getRouteQuote(input: { originLatitude: number; originLongitude: number; destinationLatitude: number; destinationLongitude: number }) {
+  const query = new URLSearchParams({ originLatitude: String(input.originLatitude), originLongitude: String(input.originLongitude), destinationLatitude: String(input.destinationLatitude), destinationLongitude: String(input.destinationLongitude) });
+  return request<RouteQuote>('/routes/quote?' + query.toString());
 }

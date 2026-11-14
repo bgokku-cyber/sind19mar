@@ -1,0 +1,236 @@
+import { ConflictException } from '@nestjs/common';
+import { RideStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { RidesService } from './rides.service';
+
+describe('RidesService', () => {
+  it('stores only the server-calculated fare when creating a ride', async () => {
+    const prisma = {
+      passenger: { findUnique: jest.fn().mockResolvedValue({ id: 'passenger-1' }) },
+      ride: { create: jest.fn().mockResolvedValue({ id: 'ride-1', estimatedFare: '11' }) },
+    } as any;
+    const routing = {
+      verifyQuoteToken: jest.fn().mockReturnValue({ currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' }),
+    } as any;
+    const service = new RidesService(prisma, routing);
+    const result = await service.create({
+      passengerId: 'passenger-1',
+      originAddress: 'Centro',
+      originLatitude: -16.5,
+      originLongitude: -68.15,
+      destinationAddress: 'Sopocachi',
+      destinationLatitude: -16.51,
+      destinationLongitude: -68.14,
+      estimatedFare: 0.01,
+      routeQuoteToken: 'signed-server-token',
+      paymentMethod: 'CASH' as any,
+    });
+    expect(result).toEqual({ id: 'ride-1', estimatedFare: '11' });
+    expect(prisma.ride.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ estimatedFare: expect.anything() }),
+    }));
+    expect(String(prisma.ride.create.mock.calls[0][0].data.estimatedFare)).toBe('11');
+  });
+
+  const makeService = (tx: any) => {
+    const prisma = {
+      $transaction: jest.fn((callback: (client: any) => Promise<unknown>) => callback(tx)),
+    } as unknown as PrismaService;
+    const routing = { verifyQuoteToken: jest.fn().mockReturnValue({ currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' }) } as any;
+    return { service: new RidesService(prisma, routing), prisma };
+  };
+
+  it('accepts a ride only after atomically claiming an eligible driver', async () => {
+    const tx = {
+      driver: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      ride: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-1', status: RideStatus.ACCEPTED }),
+      },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.accept('ride-1', 'driver-1')).resolves.toEqual({
+      id: 'ride-1',
+      status: RideStatus.ACCEPTED,
+    });
+
+    expect(tx.driver.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'driver-1', availability: 'AVAILABLE' }),
+      data: { availability: 'ON_TRIP' },
+    }));
+    expect(tx.ride.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'ride-1', status: RideStatus.REQUESTED, driverId: null },
+      data: expect.objectContaining({ driverId: 'driver-1', status: RideStatus.ACCEPTED }),
+    }));
+  });
+
+  it('rejects an acceptance if another operation already claimed the driver', async () => {
+    const tx = {
+      driver: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      ride: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.accept('ride-1', 'driver-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('allows a passenger to cancel only their own unassigned request', async () => {
+    const tx = {
+      ride: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ride-1',
+          passengerId: 'passenger-1',
+          driverId: null,
+          status: RideStatus.REQUESTED,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-1', status: RideStatus.CANCELLED }),
+      },
+      driver: { updateMany: jest.fn() },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.cancel('ride-1', {
+      role: 'PASSENGER',
+      passengerId: 'passenger-1',
+    })).resolves.toEqual({ id: 'ride-1', status: RideStatus.CANCELLED });
+
+    expect(tx.ride.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'ride-1', status: RideStatus.REQUESTED, passengerId: 'passenger-1' },
+      data: expect.objectContaining({ status: RideStatus.CANCELLED }),
+    }));
+    expect(tx.driver.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a passenger trying to cancel another passenger ride', async () => {
+    const tx = {
+      ride: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ride-1',
+          passengerId: 'someone-else',
+          driverId: null,
+          status: RideStatus.REQUESTED,
+        }),
+        updateMany: jest.fn(),
+      },
+      driver: { updateMany: jest.fn() },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.cancel('ride-1', {
+      role: 'PASSENGER',
+      passengerId: 'passenger-1',
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+
+  it('allows an assigned driver to cancel only their own pre-trip ride and releases availability', async () => {
+    const tx = {
+      ride: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ride-2',
+          passengerId: 'passenger-2',
+          driverId: 'driver-2',
+          status: RideStatus.ACCEPTED,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-2', status: RideStatus.CANCELLED }),
+      },
+      driver: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.cancel('ride-2', {
+      role: 'DRIVER',
+      driverId: 'driver-2',
+    })).resolves.toEqual({ id: 'ride-2', status: RideStatus.CANCELLED });
+
+    expect(tx.ride.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'ride-2', status: RideStatus.ACCEPTED, driverId: 'driver-2' },
+      data: expect.objectContaining({ status: RideStatus.CANCELLED }),
+    }));
+    expect(tx.driver.updateMany).toHaveBeenCalledWith({
+      where: { id: 'driver-2', availability: 'ON_TRIP' },
+      data: { availability: 'AVAILABLE' },
+    });
+  });
+
+  it('releases the driver after the assigned ride is completed', async () => {
+    const tx = {
+      ride: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'ride-1', driverId: 'driver-1', status: RideStatus.IN_PROGRESS }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-1', status: RideStatus.COMPLETED }),
+      },
+      driver: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.advanceStatus('ride-1', 'driver-1', RideStatus.COMPLETED)).resolves.toEqual({
+      id: 'ride-1',
+      status: RideStatus.COMPLETED,
+    });
+    expect(tx.driver.updateMany).toHaveBeenCalledWith({
+      where: { id: 'driver-1', availability: 'ON_TRIP' },
+      data: { availability: 'AVAILABLE' },
+    });
+  });
+
+  it('rejects an invalid ride state transition', async () => {
+    const tx = {
+      ride: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'ride-1', driverId: 'driver-1', status: RideStatus.REQUESTED }),
+        updateMany: jest.fn(),
+      },
+      driver: { updateMany: jest.fn() },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.advanceStatus('ride-1', 'driver-1', RideStatus.COMPLETED))
+      .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns driver GPS only to the passenger of a fresh active assigned ride', async () => {
+    const recordedAt = new Date();
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'active-ride', passengerId: 'passenger-1', status: RideStatus.IN_PROGRESS,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt } },
+      },
+      {
+        id: 'completed-ride', passengerId: 'passenger-1', status: RideStatus.COMPLETED,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt } },
+      },
+    ]);
+    const prisma = { ride: { findMany } } as unknown as PrismaService;
+    const service = new RidesService(prisma, { verifyQuoteToken: jest.fn() } as any);
+
+    const result = await service.list({ passengerId: 'passenger-1' }) as any[];
+    expect(result[0].driver.location).toEqual({
+      latitude: '-16.5', longitude: '-68.15', recordedAt,
+    });
+    expect(result[1].driver.location).toBeNull();
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { passengerId: 'passenger-1' },
+    }));
+  });
+
+  it('hides stale driver GPS from passenger ride history', async () => {
+    const staleAt = new Date(Date.now() - 120_000);
+    const prisma = {
+      ride: { findMany: jest.fn().mockResolvedValue([{
+        id: 'ride-1', passengerId: 'passenger-1', status: RideStatus.ACCEPTED,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt: staleAt } },
+      }]) },
+    } as unknown as PrismaService;
+    const service = new RidesService(prisma, { quote: jest.fn() } as any);
+
+    const result = await service.list({ passengerId: 'passenger-1' }) as any[];
+    expect(result[0].driver.location).toBeNull();
+  });
+
+});

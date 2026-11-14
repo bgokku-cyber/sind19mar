@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { cancelRide, getMyRides, login, logout, PassengerRide, register, restoreSession } from './src/api';
+import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession, getRouteQuote, RouteQuote, createRide } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -30,16 +32,87 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [originCoordinates, setOriginCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [destinationCoordinates, setDestinationCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [rides, setRides] = useState<PassengerRide[]>([]);
+  const [routeQuote, setRouteQuote] = useState<RouteQuote | null>(null);
+  const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [loadingRides, setLoadingRides] = useState(false);
   const [rideActionBusy, setRideActionBusy] = useState(false);
 
   useEffect(() => {
+    getMapConfig().then(setMapConfig).catch(() => setMapConfig(null));
     restoreSession().then(async ok => { setAuthenticated(ok); if (ok) await refreshRides(); }).finally(() => setCheckingSession(false));
   }, []);
 
+  // Mantiene el historial y el estado de los viajes al día mientras la sesión está abierta.
+  useEffect(() => {
+    if (!authenticated) return;
+    const interval = setInterval(() => {
+      void getMyRides().then(setRides).catch(() => {
+        // La consulta periódica no interrumpe la experiencia; el usuario puede reintentar manualmente.
+      });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [authenticated]);
+
   async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
 
+  async function useCurrentLocation() {
+    setLocationBusy(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Activa el permiso de ubicación para usar tu posición como punto de recogida.');
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setOriginCoordinates(coordinates);
+      setRouteQuote(null);
+      const places = await Location.reverseGeocodeAsync(coordinates);
+      const place = places[0];
+      const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
+      setOrigin(address || coordinates.latitude.toFixed(6) + ', ' + coordinates.longitude.toFixed(6));
+    } catch (error) {
+      Alert.alert('No pudimos obtener tu ubicación', error instanceof Error ? error.message : 'Comprueba que el GPS esté activado.');
+    } finally { setLocationBusy(false); }
+  }
+
+  async function confirmRideRequest(target: { latitude: number; longitude: number }, quoteToken: string) {
+    if (!originCoordinates) return;
+    setRideActionBusy(true);
+    try {
+      await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH', routeQuoteToken: quoteToken });
+      setRouteQuote(null);
+      await refreshRides();
+      Alert.alert('Solicitud enviada', 'Tu solicitud fue registrada. Los conductores disponibles podrán aceptarla.');
+    } catch (error) { Alert.alert('No se pudo solicitar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); }
+    finally { setRideActionBusy(false); }
+  }
+
+  async function submitRide() {
+    if (!originCoordinates) { Alert.alert('Falta el punto de recogida', 'Usa tu ubicación actual para registrar coordenadas reales del origen.'); return; }
+    if (!destination.trim()) { Alert.alert('Falta el destino', 'Escribe la dirección de destino.'); return; }
+    setRideActionBusy(true);
+    try {
+      let target = destinationCoordinates;
+      if (!target) {
+        const query = [destination.trim(), mapConfig?.city, mapConfig?.country].filter(Boolean).join(', ');
+        const results = await Location.geocodeAsync(query);
+        if (!results.length) throw new Error('No encontramos esa dirección. Revisa el texto e inténtalo nuevamente.');
+        target = { latitude: results[0].latitude, longitude: results[0].longitude };
+        setDestinationCoordinates(target);
+      }
+      if (!mapConfig) throw new Error('No se pudo cargar la configuración geográfica del servicio.');
+      const quote = await getRouteQuote({ originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationLatitude: target.latitude, destinationLongitude: target.longitude });
+      setRouteQuote(quote);
+      if (!quote.fare || !quote.quoteToken) { Alert.alert('Ruta calculada', 'Distancia vial: ' + quote.distanceKm.toFixed(2) + ' km · Tiempo estimado: ' + quote.durationMinutes + ' min. ' + (quote.fareUnavailableReason || 'La tarifa oficial no está configurada.')); return; }
+      Alert.alert('Confirmar solicitud', 'Distancia: ' + quote.distanceKm.toFixed(2) + ' km\nTiempo estimado: ' + quote.durationMinutes + ' min\nTarifa estimada: Bs ' + quote.fare.amount.toFixed(2).replace('.', ',') + '\n\n¿Deseas solicitar este viaje?', [
+        { text: 'Ahora no', style: 'cancel' },
+        { text: 'Solicitar viaje', onPress: () => { void confirmRideRequest(target!, quote.quoteToken!); } },
+      ]);
+    } catch (error) { Alert.alert('No se pudo cotizar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); }
+    finally { setRideActionBusy(false); }
+  }
   async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }
 
   async function submitAuth() {
@@ -110,6 +183,10 @@ export default function App() {
     );
   }
 
+  const activeRide = rides.find(ride => ['ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].includes(ride.status));
+  const sharedDriverLocation = activeRide?.driver?.location;
+  const driverLocationIsFresh = !!sharedDriverLocation && Date.now() - new Date(sharedDriverLocation.recordedAt).getTime() < 90000;
+
   return (
     <SafeAreaView style={styles.safeHome}>
       <StatusBar barStyle="light-content" backgroundColor={C.dark} />
@@ -122,27 +199,51 @@ export default function App() {
       </View>
       <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled">
         <View style={styles.mapCard}>
-          <View style={styles.mapGrid}>
-            {Array.from({ length: 6 }).map((_, i) => <View key={i} style={[styles.road, { top: 22 + i * 29, transform: [{ rotate: i % 2 ? '-8deg' : '7deg' }] }]} />)}
-            {Array.from({ length: 5 }).map((_, i) => <View key={`v${i}`} style={[styles.roadVertical, { left: 24 + i * 66, transform: [{ rotate: '12deg' }] }]} />)}
-            <View style={styles.mapPin}><Text style={styles.mapPinText}>●</Text></View>
+          <MapView
+            style={StyleSheet.absoluteFill}
+            key={originCoordinates ? 'pickup-map' : (mapConfig ? 'configured-map' : 'default-map')}
+            initialRegion={{
+              latitude: originCoordinates?.latitude ?? mapConfig?.center.latitude ?? -16.5,
+              longitude: originCoordinates?.longitude ?? mapConfig?.center.longitude ?? -68.15,
+              latitudeDelta: 0.045,
+              longitudeDelta: 0.045,
+            }}
+            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+            onPress={event => {
+              const point = event.nativeEvent.coordinate;
+              setDestinationCoordinates(point); setRouteQuote(null);
+              void Location.reverseGeocodeAsync(point).then(places => {
+                const place = places[0];
+                const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
+                setDestination(address || point.latitude.toFixed(6) + ', ' + point.longitude.toFixed(6));
+              }).catch(() => setDestination(point.latitude.toFixed(6) + ', ' + point.longitude.toFixed(6)));
+            }}
+          >
+            <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'} />
+            {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
+            {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
+            {routeQuote?.geometry?.coordinates?.length ? <Polyline coordinates={routeQuote.geometry.coordinates.map(([longitude, latitude]) => ({ latitude, longitude }))} strokeColor={C.green} strokeWidth={4} /> : null}
+            {driverLocationIsFresh && sharedDriverLocation && <Marker coordinate={{ latitude: Number(sharedDriverLocation.latitude), longitude: Number(sharedDriverLocation.longitude) }} title="Tu conductor" pinColor="#F59E0B" />}
+          </MapView>
+          <View style={styles.mapCaption}>
+            <Text style={styles.mapCaptionTitle}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country}` : 'Zona de servicio'}</Text>
+            <Text style={styles.mapCaptionText}>{driverLocationIsFresh ? 'Tu conductor aparece en el mapa' : 'Toca el mapa para elegir el destino'}</Text>
           </View>
-          <View style={styles.mapCaption}><Text style={styles.mapCaptionTitle}>La Paz, Bolivia</Text><Text style={styles.mapCaptionText}>Vista previa · mapa por integrar</Text></View>
+          <Text style={styles.mapAttribution}>© OpenStreetMap contributors</Text>
         </View>
         <View style={styles.tripCard}>
           <Text style={styles.tripTitle}>Solicita tu viaje</Text>
           <Text style={styles.tripHint}>Indica dónde te recogemos y tu destino.</Text>
-          <Field label="Punto de partida" value={origin} onChangeText={setOrigin} placeholder="¿Dónde te recogemos?" />
-          <Field label="Destino" value={destination} onChangeText={setDestination} placeholder="¿A dónde quieres ir?" />
+          <Field label="Punto de partida" value={origin} onChangeText={value => { setOrigin(value); setOriginCoordinates(null); setRouteQuote(null); }} placeholder="¿Dónde te recogemos?" />
+          <Pressable style={styles.locationButton} onPress={useCurrentLocation} disabled={locationBusy}><Text style={styles.locationButtonText}>{locationBusy ? "Obteniendo ubicación…" : "◎ Usar mi ubicación actual"}</Text></Pressable>
+          <Field label="Destino" value={destination} onChangeText={value => { setDestination(value); setDestinationCoordinates(null); setRouteQuote(null); }} placeholder="¿A dónde quieres ir?" />
           <View style={styles.paymentRow}>
             <View style={styles.cashIcon}><Text style={styles.cashGlyph}>Bs</Text></View>
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
-          <Pressable style={[styles.primaryButton, styles.disabled]} disabled>
-            <Text style={styles.primaryButtonText}>Buscar conductor</Text>
-          </Pressable>
-          <Text style={styles.notice}>La solicitud se habilitará cuando conectemos los mapas y la ubicación real. No mostraremos ubicaciones inventadas.</Text>
+          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText} >Cotizar y solicitar viaje</Text>}</Pressable>
+          <Text style={styles.notice}>La ruta y la tarifa se calculan en el servidor. La solicitud sólo se envía si existe una tarifa oficial configurada y confirmas el precio.</Text>
         </View>
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
@@ -207,6 +308,8 @@ const styles = StyleSheet.create({
   input: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: '#FBFDFC', paddingHorizontal: 14, color: C.ink, fontSize: 14 },
   primaryButton: { height: 52, borderRadius: 13, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   primaryButtonText: { color: C.white, fontSize: 15, fontWeight: '800' },
+  locationButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 11, borderRadius: 9, backgroundColor: C.pale, marginTop: -6, marginBottom: 12 },
+  locationButtonText: { color: C.dark, fontSize: 11, fontWeight: '800' },
   pressed: { opacity: 0.86 },
   disabled: { opacity: 0.48 },
   switchButton: { alignItems: 'center', paddingVertical: 17 },
@@ -228,6 +331,7 @@ const styles = StyleSheet.create({
   mapCaption: { position: 'absolute', bottom: 10, left: 12, backgroundColor: C.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
   mapCaptionTitle: { color: C.dark, fontSize: 11, fontWeight: '800' },
   mapCaptionText: { color: C.muted, fontSize: 9, marginTop: 2 },
+  mapAttribution: { position: 'absolute', right: 7, bottom: 5, color: '#26352C', backgroundColor: 'rgba(255,255,255,0.85)', fontSize: 8, paddingHorizontal: 4, paddingVertical: 2 },
   tripCard: { backgroundColor: C.white, borderRadius: 19, padding: 18, borderWidth: 1, borderColor: '#E7EEE9' },
   tripTitle: { color: C.ink, fontSize: 19, fontWeight: '800' },
   tripHint: { color: C.muted, fontSize: 12, marginTop: 4, marginBottom: 17 },

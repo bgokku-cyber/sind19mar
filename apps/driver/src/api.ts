@@ -84,3 +84,34 @@ export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'I
     method: 'POST', body: JSON.stringify({ status }),
   });
 }
+
+
+export async function cancelRide(rideId: string) {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
+
+export type MapConfig = {
+  city: string;
+  country: string;
+  center: { latitude: number; longitude: number };
+  defaultZoom: number;
+  coverageRadiusKm: number;
+  provider: string;
+  tileUrlTemplate: string;
+  locationMode: 'gps_or_manual';
+  attributionRequired: boolean;
+};
+
+/** Configuración geográfica central compartida por las aplicaciones. */
+export async function getMapConfig() {
+  return request<MapConfig>('/maps/config');
+}
+
+
+/** Envía una posición GPS autenticada del conductor. */
+export async function updateMyLocation(location: { latitude: number; longitude: number }) {
+  return request<{ latitude: number; longitude: number; recordedAt: string }>('/drivers/me/location', {
+    method: 'POST',
+    body: JSON.stringify(location),
+  });
+}

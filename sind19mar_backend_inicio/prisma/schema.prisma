@@ -98,6 +98,7 @@ model Driver {
   verifiedAt    DateTime?
   vehicles      Vehicle[]
   rides         Ride[]             @relation("DriverRides")
+  location      DriverLocation?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -144,4 +145,16 @@ model Ride {
   @@index([passengerId, requestedAt])
   @@index([driverId, status])
   @@index([status, requestedAt])
+}
+
+
+model DriverLocation {
+  id         String   @id @default(cuid())
+  driverId   String   @unique
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  latitude   Decimal  @db.Decimal(10, 7)
+  longitude  Decimal  @db.Decimal(10, 7)
+  recordedAt DateTime @default(now())
+
+  @@index([recordedAt])
 }

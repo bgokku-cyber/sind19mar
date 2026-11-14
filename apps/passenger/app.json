@@ -8,6 +8,14 @@
     "android": {
       "package": "bo.sind19mar.pasajero",
       "versionCode": 1
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sind.19-Mar necesita tu ubicación mientras usas la aplicación para fijar el punto de recogida."
+        }
+      ]
+    ]
   }
 }
