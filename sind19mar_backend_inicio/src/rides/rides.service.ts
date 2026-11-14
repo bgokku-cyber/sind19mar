@@ -2,15 +2,21 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PaymentMethod, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
+import { RoutingService } from '../routing/routing.service';
 import { assertRideWithinMapCoverage } from '../maps/map-coverage';
 
 @Injectable()
 export class RidesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly routing: RoutingService) {}
 
   async create(input: CreateRideDto) {
     // La cobertura se valida en servidor; no se confía en límites enviados por la app.
     assertRideWithinMapCoverage(input.originLatitude, input.originLongitude, input.destinationLatitude, input.destinationLongitude);
+    const routeQuote = await this.routing.quote(
+      { latitude: input.originLatitude, longitude: input.originLongitude },
+      { latitude: input.destinationLatitude, longitude: input.destinationLongitude },
+    );
+    if (!routeQuote.fare) throw new ConflictException('No se pueden aceptar solicitudes hasta configurar y aprobar la tarifa oficial en bolivianos.');
     const passenger = await this.prisma.passenger.findUnique({ where: { id: input.passengerId } });
     if (!passenger) throw new NotFoundException('No se encontró el perfil del pasajero.');
 
@@ -23,8 +29,9 @@ export class RidesService {
         destinationAddress: input.destinationAddress.trim(),
         destinationLatitude: new Prisma.Decimal(input.destinationLatitude),
         destinationLongitude: new Prisma.Decimal(input.destinationLongitude),
-        // La tarifa enviada por el cliente nunca se considera válida ni oficial.
-        // Se calculará en el servidor cuando se implemente el motor tarifario de La Paz.
+        // La tarifa oficial se vuelve a calcular aquí con la distancia vial del proveedor.
+        // Nunca se acepta la tarifa estimada que envíe el cliente.
+        estimatedFare: new Prisma.Decimal(routeQuote.fare.amount),
         paymentMethod: input.paymentMethod as PaymentMethod,
       },
     });
