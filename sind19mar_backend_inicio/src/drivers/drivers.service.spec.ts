@@ -69,6 +69,7 @@ describe('DriversService', () => {
           id: 'driver-1', verifiedAt: null, vehicles: [], fleet: null,
           availability: DriverAvailability.OFFLINE,
         }),
+        update: jest.fn(),
       },
     });
 
@@ -84,6 +85,7 @@ describe('DriversService', () => {
           id: 'driver-1', verifiedAt: new Date(), vehicles: [{ id: 'vehicle-1' }],
           fleet: { status: 'SUSPENDED' }, availability: DriverAvailability.OFFLINE,
         }),
+        update: jest.fn(),
       },
     });
 
@@ -99,6 +101,7 @@ describe('DriversService', () => {
           id: 'driver-1', verifiedAt: new Date(), vehicles: [{ id: 'vehicle-1' }],
           fleet: null, availability: DriverAvailability.ON_TRIP,
         }),
+        update: jest.fn(),
       },
     });
 
