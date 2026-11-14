@@ -106,3 +106,12 @@ export type MapConfig = {
 export async function getMapConfig() {
   return request<MapConfig>('/maps/config');
 }
+
+
+/** Envía una posición GPS autenticada del conductor. */
+export async function updateMyLocation(location: { latitude: number; longitude: number }) {
+  return request<{ latitude: number; longitude: number; recordedAt: string }>('/drivers/me/location', {
+    method: 'POST',
+    body: JSON.stringify(location),
+  });
+}
