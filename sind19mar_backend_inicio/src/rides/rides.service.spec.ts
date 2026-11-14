@@ -8,7 +8,8 @@ describe('RidesService', () => {
     const prisma = {
       $transaction: jest.fn((callback: (client: any) => Promise<unknown>) => callback(tx)),
     } as unknown as PrismaService;
-    return { service: new RidesService(prisma), prisma };
+    const routing = { quote: jest.fn().mockResolvedValue({ fare: { currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' } }) } as any;
+    return { service: new RidesService(prisma, routing), prisma };
   };
 
   it('accepts a ride only after atomically claiming an eligible driver', async () => {
