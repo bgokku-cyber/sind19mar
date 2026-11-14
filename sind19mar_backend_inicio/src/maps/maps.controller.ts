@@ -27,7 +27,7 @@ function tileTemplateFromEnv(): string {
   const value = process.env.MAP_TILE_URL_TEMPLATE?.trim();
   // Sólo se publican plantillas HTTPS con placeholders estándar de teselas.
   if (!value || !value.startsWith('https://') ||
-      !value.includes('{z}') || !value.includes('{x}') || !value.includes('{y}')) {
+      !value.includes('{z}') || !value.includes('{x}') || !value.includes('{y}') || /\\{(?![zxy]\\})[a-z]+\\}/i.test(value)) {
     return DEFAULTS.tileUrlTemplate;
   }
   return value;
