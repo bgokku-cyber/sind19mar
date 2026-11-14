@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { cancelRide, createRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
+import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -87,9 +87,15 @@ export default function App() {
         target = { latitude: results[0].latitude, longitude: results[0].longitude };
         setDestinationCoordinates(target);
       }
-      const ride = await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH' });
-      setRides(current => [ride, ...current.filter(item => item.id !== ride.id)]);
-      Alert.alert('Solicitud registrada', 'Tu solicitud se registró correctamente. La asignación de conductor sigue pendiente de completar la integración operativa.');
+      if (!mapConfig) throw new Error('No se pudo cargar la configuración geográfica del servicio.');
+      const toRadians = (degrees: number) => degrees * Math.PI / 180;
+      const dLat = toRadians(target.latitude - mapConfig.center.latitude);
+      const dLon = toRadians(target.longitude - mapConfig.center.longitude);
+      const centerLat = toRadians(mapConfig.center.latitude);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(centerLat) * Math.cos(toRadians(target.latitude)) * Math.sin(dLon / 2) ** 2;
+      const distance = 6371.0088 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (distance > mapConfig.coverageRadiusKm) throw new Error('El destino está fuera de la zona de cobertura configurada.');
+      Alert.alert('Ubicaciones verificadas', 'El origen GPS y el destino están dentro de la zona de cobertura. La solicitud de viaje seguirá deshabilitada hasta terminar el mapa y el flujo operativo del conductor.');
     } catch (error) {
       Alert.alert('No se pudo registrar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
     } finally { setRideActionBusy(false); }
@@ -194,8 +200,8 @@ export default function App() {
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
-          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText}>Registrar solicitud</Text>}</Pressable>
-          <Text style={styles.notice}>El origen usa GPS del dispositivo y el destino se geocodifica. El mapa interactivo y la asignación operativa siguen pendientes.</Text>
+          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText} >Validar ubicaciones</Text>}</Pressable>
+          <Text style={styles.notice}>El origen usa GPS y el destino se geocodifica. Esta validación no crea un viaje; el mapa interactivo y la asignación operativa siguen pendientes.</Text>
         </View>
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
