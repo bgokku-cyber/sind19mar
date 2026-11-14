@@ -4,6 +4,35 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RidesService } from './rides.service';
 
 describe('RidesService', () => {
+  it('stores only the server-calculated fare when creating a ride', async () => {
+    const prisma = {
+      passenger: { findUnique: jest.fn().mockResolvedValue({ id: 'passenger-1' }) },
+      ride: { create: jest.fn().mockResolvedValue({ id: 'ride-1', estimatedFare: '11' }) },
+    } as any;
+    const routing = {
+      quote: jest.fn().mockResolvedValue({
+        fare: { currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' },
+      }),
+    } as any;
+    const service = new RidesService(prisma, routing);
+    const result = await service.create({
+      passengerId: 'passenger-1',
+      originAddress: 'Centro',
+      originLatitude: -16.5,
+      originLongitude: -68.15,
+      destinationAddress: 'Sopocachi',
+      destinationLatitude: -16.51,
+      destinationLongitude: -68.14,
+      estimatedFare: 0.01,
+      paymentMethod: 'CASH' as any,
+    });
+    expect(result).toEqual({ id: 'ride-1', estimatedFare: '11' });
+    expect(prisma.ride.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ estimatedFare: expect.anything() }),
+    }));
+    expect(String(prisma.ride.create.mock.calls[0][0].data.estimatedFare)).toBe('11');
+  });
+
   const makeService = (tx: any) => {
     const prisma = {
       $transaction: jest.fn((callback: (client: any) => Promise<unknown>) => callback(tx)),
