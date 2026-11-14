@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
+import { cancelRide, createRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -30,6 +31,9 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [originCoordinates, setOriginCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [destinationCoordinates, setDestinationCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [rides, setRides] = useState<PassengerRide[]>([]);
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [loadingRides, setLoadingRides] = useState(false);
@@ -53,6 +57,43 @@ export default function App() {
 
   async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
 
+  async function useCurrentLocation() {
+    setLocationBusy(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Activa el permiso de ubicación para usar tu posición como punto de recogida.');
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setOriginCoordinates(coordinates);
+      const places = await Location.reverseGeocodeAsync(coordinates);
+      const place = places[0];
+      const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
+      setOrigin(address || coordinates.latitude.toFixed(6) + ', ' + coordinates.longitude.toFixed(6));
+    } catch (error) {
+      Alert.alert('No pudimos obtener tu ubicación', error instanceof Error ? error.message : 'Comprueba que el GPS esté activado.');
+    } finally { setLocationBusy(false); }
+  }
+
+  async function submitRide() {
+    if (!originCoordinates) { Alert.alert('Falta el punto de recogida', 'Usa tu ubicación actual para registrar coordenadas reales del origen.'); return; }
+    if (!destination.trim()) { Alert.alert('Falta el destino', 'Escribe la dirección de destino.'); return; }
+    setRideActionBusy(true);
+    try {
+      let target = destinationCoordinates;
+      if (!target) {
+        const query = [destination.trim(), mapConfig?.city, mapConfig?.country].filter(Boolean).join(', ');
+        const results = await Location.geocodeAsync(query);
+        if (!results.length) throw new Error('No encontramos esa dirección. Revisa el texto e inténtalo nuevamente.');
+        target = { latitude: results[0].latitude, longitude: results[0].longitude };
+        setDestinationCoordinates(target);
+      }
+      const ride = await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH' });
+      setRides(current => [ride, ...current.filter(item => item.id !== ride.id)]);
+      Alert.alert('Solicitud registrada', 'Tu solicitud se registró correctamente. La asignación de conductor sigue pendiente de completar la integración operativa.');
+    } catch (error) {
+      Alert.alert('No se pudo registrar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
+    } finally { setRideActionBusy(false); }
+  }
   async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }
 
   async function submitAuth() {
@@ -145,17 +186,16 @@ export default function App() {
         <View style={styles.tripCard}>
           <Text style={styles.tripTitle}>Solicita tu viaje</Text>
           <Text style={styles.tripHint}>Indica dónde te recogemos y tu destino.</Text>
-          <Field label="Punto de partida" value={origin} onChangeText={setOrigin} placeholder="¿Dónde te recogemos?" />
-          <Field label="Destino" value={destination} onChangeText={setDestination} placeholder="¿A dónde quieres ir?" />
+          <Field label="Punto de partida" value={origin} onChangeText={value => { setOrigin(value); setOriginCoordinates(null); }} placeholder="¿Dónde te recogemos?" />
+          <Pressable style={styles.locationButton} onPress={useCurrentLocation} disabled={locationBusy}><Text style={styles.locationButtonText}>{locationBusy ? "Obteniendo ubicación…" : "◎ Usar mi ubicación actual"}</Text></Pressable>
+          <Field label="Destino" value={destination} onChangeText={value => { setDestination(value); setDestinationCoordinates(null); }} placeholder="¿A dónde quieres ir?" />
           <View style={styles.paymentRow}>
             <View style={styles.cashIcon}><Text style={styles.cashGlyph}>Bs</Text></View>
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
-          <Pressable style={[styles.primaryButton, styles.disabled]} disabled>
-            <Text style={styles.primaryButtonText}>Buscar conductor</Text>
-          </Pressable>
-          <Text style={styles.notice}>La solicitud se habilitará cuando conectemos los mapas y la ubicación real. No mostraremos ubicaciones inventadas.</Text>
+          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText}>Registrar solicitud</Text>}</Pressable>
+          <Text style={styles.notice}>El origen usa GPS del dispositivo y el destino se geocodifica. El mapa interactivo y la asignación operativa siguen pendientes.</Text>
         </View>
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
@@ -220,6 +260,8 @@ const styles = StyleSheet.create({
   input: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: '#FBFDFC', paddingHorizontal: 14, color: C.ink, fontSize: 14 },
   primaryButton: { height: 52, borderRadius: 13, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   primaryButtonText: { color: C.white, fontSize: 15, fontWeight: '800' },
+  locationButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 11, borderRadius: 9, backgroundColor: C.pale, marginTop: -6, marginBottom: 12 },
+  locationButtonText: { color: C.dark, fontSize: 11, fontWeight: '800' },
   pressed: { opacity: 0.86 },
   disabled: { opacity: 0.48 },
   switchButton: { alignItems: 'center', paddingVertical: 17 },
