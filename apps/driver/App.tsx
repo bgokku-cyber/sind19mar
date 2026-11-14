@@ -28,6 +28,19 @@ export default function App() {
   async function handleRideAction(action: () => Promise<unknown>) { setBusy(true); try { await action(); await Promise.all([refresh(), refreshRides()]); } catch (e) { Alert.alert('No se pudo actualizar el viaje', e instanceof Error ? e.message : 'Inténtalo nuevamente.'); } finally { setBusy(false); } }
   useEffect(() => { restoreSession().then(async ok => { if (ok) { setSignedIn(true); try { await Promise.all([refresh(), refreshRides()]); } catch { setSignedIn(false); } } }).finally(() => setChecking(false)); }, []);
 
+  // Consulta periódicamente el perfil y los viajes para reflejar asignaciones y cambios de estado.
+  useEffect(() => {
+    if (!signedIn) return;
+    const interval = setInterval(() => {
+      void Promise.all([getProfile(), getRides()])
+        .then(([nextProfile, nextRides]) => { setProfile(nextProfile); setRides(nextRides); })
+        .catch(() => {
+          // Los fallos transitorios de red no generan alertas repetidas.
+        });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [signedIn]);
+
   async function submitAuth() {
     if (!phone.trim() || !password) return Alert.alert('Faltan datos', 'Ingresa tu teléfono y contraseña.');
     if (mode === 'register' && (fullName.trim().length < 3 || license.trim().length < 4)) return Alert.alert('Datos incompletos', 'Ingresa tu nombre completo y número de licencia.');
