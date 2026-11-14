@@ -68,6 +68,28 @@ describe('AuthService', () => {
     expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { phone: '70000000' } });
   });
 
+  it('rejects login passwords longer than bcrypt supports before querying the database', async () => {
+    await expect(service.login({ phone: '70000000', password: 'á'.repeat(37) }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed phone numbers before querying the database', async () => {
+    await expect(service.login({ phone: '123', password: 'secret-password' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects registration passwords exceeding bcrypt byte limit', async () => {
+    await expect(service.registerPassenger({
+      fullName: 'Pasajero de Prueba',
+      phone: '70000000',
+      password: 'á'.repeat(37),
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
   it('creates fleet-manager applications as pending and does not issue a token', async () => {
     (bcrypt.hash as jest.Mock).mockResolvedValue('password-hash');
     prisma.user.create.mockResolvedValue({ id: 'manager-1' });
