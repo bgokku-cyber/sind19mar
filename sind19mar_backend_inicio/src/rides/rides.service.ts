@@ -50,7 +50,7 @@ export class RidesService {
         destinationLatitude,
         destinationLongitude,
         paymentMethod,
-        estimatedFare: estimatedFare === undefined ? undefined : estimatedFare,
+        estimatedFare: estimatedFare === undefined ? undefined : (estimatedFare as string),
       },
     });
   }
@@ -93,15 +93,16 @@ export class RidesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const driverClaim = await tx.driver.updateMany({
+        where: { id: driverId, availability: 'AVAILABLE' },
+        data: { availability: 'ON_TRIP' },
+      });
+      if (driverClaim.count !== 1) throw new ConflictException('El conductor ya no está disponible.');
       const claimed = await tx.ride.updateMany({
         where: { id: rideId, status: 'REQUESTED', driverId: null },
         data: { driverId, status: 'ACCEPTED', acceptedAt: new Date() },
       });
       if (claimed.count !== 1) throw new ConflictException('Otro conductor ya aceptó este viaje.');
-      await tx.driver.updateMany({
-        where: { id: driverId, availability: 'AVAILABLE' },
-        data: { availability: 'ON_TRIP' },
-      });
       const fresh = await tx.ride.findUnique({ where: { id: rideId } });
       return fresh;
     });
@@ -122,7 +123,7 @@ export class RidesService {
       const changed = await tx.ride.updateMany({
         where: { id: rideId, driverId, status: ride.status },
         data: {
-          status,
+          status: status as any,
           ...(status === 'IN_PROGRESS' ? { startedAt: now } : {}),
           ...(status === 'COMPLETED' ? { completedAt: now } : {}),
           ...(status === 'CANCELLED' ? { cancelledAt: now } : {}),
