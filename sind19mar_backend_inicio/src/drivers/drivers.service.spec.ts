@@ -174,6 +174,22 @@ describe('DriversService', () => {
     expect(prisma.driver.update).not.toHaveBeenCalled();
   });
 
+
+  it('deletes the last shared GPS position when the driver disconnects', async () => {
+    const { service, prisma } = makeService({
+      driver: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'driver-1', verifiedAt: new Date(), vehicles: [{ id: 'vehicle-1' }],
+          fleet: null, availability: DriverAvailability.AVAILABLE,
+        }),
+        update: jest.fn().mockResolvedValue({ availability: DriverAvailability.OFFLINE }),
+      },
+    });
+    await expect(service.setAvailability('driver-1', DriverAvailability.OFFLINE))
+      .resolves.toEqual({ availability: DriverAvailability.OFFLINE });
+    expect(prisma.driverLocation.deleteMany).toHaveBeenCalledWith({ where: { driverId: 'driver-1' } });
+  });
+
   it('returns not found when the driver profile does not exist', async () => {
     const { service } = makeService({
       driver: { findUnique: jest.fn().mockResolvedValue(null) },
