@@ -25,7 +25,7 @@ describe('MapsController', () => {
       defaultZoom: 12,
       coverageRadiusKm: 25,
       provider: 'openstreetmap',
-      tileUrlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       locationMode: 'gps_or_manual',
       attributionRequired: true,
     });
@@ -64,7 +64,7 @@ describe('MapsController', () => {
       center: { latitude: -16.5, longitude: -68.15 },
       defaultZoom: 12,
       coverageRadiusKm: 25,
-      tileUrlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     });
   });
 
@@ -72,7 +72,15 @@ describe('MapsController', () => {
     for (const name of names) delete process.env[name];
     process.env.MAP_TILE_URL_TEMPLATE = 'https://maps.example/static.png';
     expect(new MapsController().getConfig().tileUrlTemplate)
-      .toBe('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      .toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+  });
+
+
+  it('rejects unsupported placeholders in tile templates', () => {
+    for (const name of names) delete process.env[name];
+    process.env.MAP_TILE_URL_TEMPLATE = 'https://maps.example/{s}/{z}/{x}/{y}.png';
+    expect(new MapsController().getConfig().tileUrlTemplate)
+      .toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
   });
 
 });
