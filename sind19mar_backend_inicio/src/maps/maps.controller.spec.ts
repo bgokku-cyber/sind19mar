@@ -51,4 +51,28 @@ describe('MapsController', () => {
       tileUrlTemplate: 'https://maps.example/{z}/{x}/{y}.png',
     });
   });
+
+  it('falls back safely when coordinates, zoom, radius or tile URL are invalid', () => {
+    for (const name of names) delete process.env[name];
+    process.env.MAP_CENTER_LATITUDE = '999';
+    process.env.MAP_CENTER_LONGITUDE = '-999';
+    process.env.MAP_DEFAULT_ZOOM = '50';
+    process.env.MAP_COVERAGE_RADIUS_KM = '-3';
+    process.env.MAP_TILE_URL_TEMPLATE = 'http://untrusted.example/{z}/{x}/{y}.png';
+
+    expect(new MapsController().getConfig()).toMatchObject({
+      center: { latitude: -16.5, longitude: -68.15 },
+      defaultZoom: 12,
+      coverageRadiusKm: 25,
+      tileUrlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    });
+  });
+
+  it('rejects a secure tile template that omits required coordinate placeholders', () => {
+    for (const name of names) delete process.env[name];
+    process.env.MAP_TILE_URL_TEMPLATE = 'https://maps.example/static.png';
+    expect(new MapsController().getConfig().tileUrlTemplate)
+      .toBe('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+  });
+
 });
