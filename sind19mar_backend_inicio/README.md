@@ -49,3 +49,13 @@ MAP_TILE_URL_TEMPLATE="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 ```
 
 La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`. La detección GPS y el selector manual deben implementarse en las apps; este endpoint sólo centraliza la configuración y no activa por sí mismo la navegación ni el cálculo de rutas. Respeta las condiciones de uso y atribución del proveedor de teselas elegido.
+
+
+### Ubicación GPS del conductor
+- `POST /api/drivers/me/location`: recibe latitud y longitud usando la identidad del conductor autenticado; no acepta IDs enviados por el cliente.
+- Sólo se almacena ubicación si la cuenta está activa, el conductor fue verificado y está en estado `AVAILABLE` o `ON_TRIP`.
+- `GET /api/rides` para un pasajero incluye la última ubicación del conductor asignado en sus propios viajes; la app sólo la representa si la posición tiene menos de 90 segundos.
+- Al pasar a `OFFLINE`, se elimina la última posición almacenada.
+- La app transmite ubicación en primer plano después de que el conductor pulsa «Mi ubicación» y concede permiso. El seguimiento en segundo plano no está habilitado.
+
+**Actualización de base de datos:** se añadió el modelo `DriverLocation` a Prisma. Este repositorio aún no tenía historial de migraciones; antes de ejecutar en una base de datos de desarrollo existente, sincroniza el esquema con `npx prisma db push` desde `sind19mar_backend_inicio` y genera el cliente con `npx prisma generate`. Para producción se debe preparar y revisar una migración versionada y respaldar la base de datos antes de aplicarla.
