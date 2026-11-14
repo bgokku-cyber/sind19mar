@@ -18,3 +18,6 @@ No uses `localhost` en un teléfono físico. La URL debe ser accesible desde el 
 
 ## Pendiente
 La recepción y aceptación de viajes, navegación, ubicación en segundo plano, notificaciones y compilación APK se incorporarán en siguientes fases. No se permite conectarse hasta que la cuenta y un vehículo hayan sido aprobados por administración.
+
+
+La app del conductor incorpora un mapa configurable y una acción para mostrar la ubicación GPS local. Esta posición no se envía al servidor ni se comparte con pasajeros todavía. El servidor público estándar de teselas de OpenStreetMap es únicamente para pruebas/piloto de bajo volumen; antes de producción debe configurarse un proveedor de teselas adecuado y conservarse la atribución.
