@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DriverAvailability } from '@prisma/client';
+import { DriverAvailability, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -45,6 +45,33 @@ export class DriversService {
     }
   }
 
+  async updateLocation(driverId: string, input: any) {
+    if (!input || typeof input.latitude !== 'number' || typeof input.longitude !== 'number' ||
+        !Number.isFinite(input.latitude) || !Number.isFinite(input.longitude) ||
+        input.latitude < -90 || input.latitude > 90 ||
+        input.longitude < -180 || input.longitude > 180) {
+      throw new BadRequestException('Las coordenadas GPS no son válidas.');
+    }
+
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { id: true, availability: true, verifiedAt: true, user: { select: { status: true } } },
+    });
+    if (!driver) throw new NotFoundException('No se encontró el perfil del conductor.');
+    if (driver.user.status !== 'ACTIVE' || !driver.verifiedAt ||
+        !([DriverAvailability.AVAILABLE, DriverAvailability.ON_TRIP] as DriverAvailability[]).includes(driver.availability)) {
+      throw new ForbiddenException('Debes tener la cuenta aprobada y estar conectado para compartir tu ubicación.');
+    }
+
+    const location = await this.prisma.driverLocation.upsert({
+      where: { driverId },
+      create: { driverId, latitude: new Prisma.Decimal(input.latitude), longitude: new Prisma.Decimal(input.longitude), recordedAt: new Date() },
+      update: { latitude: new Prisma.Decimal(input.latitude), longitude: new Prisma.Decimal(input.longitude), recordedAt: new Date() },
+      select: { latitude: true, longitude: true, recordedAt: true },
+    });
+    return { latitude: Number(location.latitude), longitude: Number(location.longitude), recordedAt: location.recordedAt };
+  }
+
   async setAvailability(driverId: string, availability: DriverAvailability) {
     if (!( [DriverAvailability.AVAILABLE, DriverAvailability.OFFLINE] as DriverAvailability[]).includes(availability)) throw new BadRequestException('Disponibilidad solicitada no válida.');
     const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, include: { vehicles: { where: { isActive: true } }, fleet: { select: { status: true } } } });
@@ -52,6 +79,10 @@ export class DriversService {
     if (availability === DriverAvailability.AVAILABLE && (!driver.verifiedAt || driver.vehicles.length === 0)) throw new ForbiddenException('Tu cuenta y al menos un vehículo deben estar aprobados antes de conectarte.');
     if (availability === DriverAvailability.AVAILABLE && driver.fleet && driver.fleet.status !== 'ACTIVE') throw new ForbiddenException('La flota asociada no está habilitada para operar.');
     if (driver.availability === DriverAvailability.ON_TRIP) throw new ConflictException('No puedes cambiar tu disponibilidad durante un viaje.');
-    return this.prisma.driver.update({ where: { id: driverId }, data: { availability } });
+    const updated = await this.prisma.driver.update({ where: { id: driverId }, data: { availability } });
+    if (availability === DriverAvailability.OFFLINE) {
+      await this.prisma.driverLocation.deleteMany({ where: { driverId } });
+    }
+    return updated;
   }
 }
