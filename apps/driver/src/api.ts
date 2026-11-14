@@ -89,3 +89,20 @@ export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'I
 export async function cancelRide(rideId: string) {
   return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
 }
+
+export type MapConfig = {
+  city: string;
+  country: string;
+  center: { latitude: number; longitude: number };
+  defaultZoom: number;
+  coverageRadiusKm: number;
+  provider: string;
+  tileUrlTemplate: string;
+  locationMode: 'gps_or_manual';
+  attributionRequired: boolean;
+};
+
+/** Configuración geográfica central compartida por las aplicaciones. */
+export async function getMapConfig() {
+  return request<MapConfig>('/maps/config');
+}
