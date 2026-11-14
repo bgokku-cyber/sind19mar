@@ -59,3 +59,10 @@ La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`.
 - La app transmite ubicación en primer plano después de que el conductor pulsa «Mi ubicación» y concede permiso. El seguimiento en segundo plano no está habilitado.
 
 **Actualización de base de datos:** se añadió el modelo `DriverLocation` a Prisma. Este repositorio aún no tenía historial de migraciones; antes de ejecutar en una base de datos de desarrollo existente, sincroniza el esquema con `npx prisma db push` desde `sind19mar_backend_inicio` y genera el cliente con `npx prisma generate`. Para producción se debe preparar y revisar una migración versionada y respaldar la base de datos antes de aplicarla.
+
+
+### Base del motor tarifario en bolivianos
+- Se añadió una función pura y probada para calcular una tarifa en BOB a partir de una distancia de ruta suministrada por un proveedor de rutas.
+- La fórmula es: máximo entre tarifa mínima y (tarifa base + kilómetros de ruta × precio por kilómetro). El resultado se redondea a dos decimales.
+- Variables previstas: `FARE_BASE_BOB`, `FARE_PER_KM_BOB` y `FARE_MINIMUM_BOB`. No se inventan valores predeterminados: si falta alguna variable o no es válida, la configuración tarifaria se considera no disponible.
+- **Todavía no se usa para crear viajes ni se expone como cotización pública.** Primero falta integrar y validar una distancia vial real (no distancia en línea recta), definir la política tarifaria del sindicato y conectar el cotizador al flujo de solicitud. El cliente nunca debe determinar la tarifa oficial.
