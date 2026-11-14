@@ -67,6 +67,7 @@ export default function App() {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setOriginCoordinates(coordinates);
+      setRouteQuote(null);
       const places = await Location.reverseGeocodeAsync(coordinates);
       const place = places[0];
       const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
@@ -210,7 +211,7 @@ export default function App() {
             mapType={Platform.OS === 'android' ? 'none' : 'standard'}
             onPress={event => {
               const point = event.nativeEvent.coordinate;
-              setDestinationCoordinates(point);
+              setDestinationCoordinates(point); setRouteQuote(null);
               void Location.reverseGeocodeAsync(point).then(places => {
                 const place = places[0];
                 const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
@@ -233,9 +234,9 @@ export default function App() {
         <View style={styles.tripCard}>
           <Text style={styles.tripTitle}>Solicita tu viaje</Text>
           <Text style={styles.tripHint}>Indica dónde te recogemos y tu destino.</Text>
-          <Field label="Punto de partida" value={origin} onChangeText={value => { setOrigin(value); setOriginCoordinates(null); }} placeholder="¿Dónde te recogemos?" />
+          <Field label="Punto de partida" value={origin} onChangeText={value => { setOrigin(value); setOriginCoordinates(null); setRouteQuote(null); }} placeholder="¿Dónde te recogemos?" />
           <Pressable style={styles.locationButton} onPress={useCurrentLocation} disabled={locationBusy}><Text style={styles.locationButtonText}>{locationBusy ? "Obteniendo ubicación…" : "◎ Usar mi ubicación actual"}</Text></Pressable>
-          <Field label="Destino" value={destination} onChangeText={value => { setDestination(value); setDestinationCoordinates(null); }} placeholder="¿A dónde quieres ir?" />
+          <Field label="Destino" value={destination} onChangeText={value => { setDestination(value); setDestinationCoordinates(null); setRouteQuote(null); }} placeholder="¿A dónde quieres ir?" />
           <View style={styles.paymentRow}>
             <View style={styles.cashIcon}><Text style={styles.cashGlyph}>Bs</Text></View>
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
