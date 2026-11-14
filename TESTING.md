@@ -90,7 +90,54 @@ Abre la dirección que indique Vite (normalmente `http://localhost:5173`) e inic
 7. Durante un viaje activo, el pasajero ve la ubicación reciente del conductor si éste comparte GPS en primer plano.
 8. Al completar el viaje, el conductor vuelve a estar disponible.
 
-## 8. Límites antes de producción
+
+
+## 8. Lista de aceptación para la prueba real
+
+Marca cada punto como **APROBADO**, **FALLÓ** o **NO PROBADO**. No avances a producción si queda un fallo de seguridad, asignación de viaje, tarifa o ubicación.
+
+| ID | Prueba | Resultado esperado |
+|---|---|---|
+| API-01 | Abrir `/api/health` | La API responde correctamente. |
+| API-02 | Abrir `/api/health/ready` | La API confirma que PostgreSQL está disponible. |
+| AUTH-01 | Registrar pasajero y entrar | La cuenta se crea y puede iniciar sesión. |
+| AUTH-02 | Registrar conductor e intentar conectarse sin aprobación | El backend impide ofrecer/aceptar viajes hasta su aprobación y verificación. |
+| ADM-01 | Entrar como administrador | Se puede consultar y aprobar el conductor y su vehículo. |
+| MAP-01 | Consultar mapa y ubicación actual | El mapa usa la zona configurada y solicita permiso de ubicación en primer plano. |
+| ROUTE-01 | Elegir destino dentro de cobertura | Se muestra ruta, distancia y duración calculadas por el proveedor. |
+| ROUTE-02 | Elegir destino fuera de cobertura | La solicitud se rechaza con un mensaje comprensible. |
+| FARE-01 | Cotizar con tarifas oficiales configuradas | Se muestra el importe en Bs. calculado por la API. |
+| FARE-02 | Modificar manualmente el precio enviado desde el cliente | El backend no acepta el precio manipulado. |
+| RIDE-01 | Pasajero solicita y conductor aprobado acepta | El viaje queda asociado a las cuentas correctas. |
+| RIDE-02 | Conductor avanza llegada, inicio y finalización | Los estados cambian en el orden permitido y se reflejan al pasajero. |
+| GPS-01 | Conductor comparte ubicación durante un viaje | El pasajero ve la ubicación reciente del conductor asignado. |
+| GPS-02 | Conductor se desconecta | Deja de compartir ubicación y no aparece como disponible. |
+| PRIV-01 | Intentar consultar viajes de otra cuenta | La API no revela viajes ni ubicaciones ajenas. |
+| CANCEL-01 | Cancelar un viaje permitido | Se registra la cancelación y se respeta el estado del viaje. |
+
+### Cómo registrar un fallo
+
+Para cada incidencia anota:
+- ID de la prueba (por ejemplo, `GPS-01`).
+- Aplicación y pantalla donde ocurrió.
+- Pasos exactos para reproducirlo.
+- Resultado esperado y resultado observado.
+- Mensaje de error o captura, ocultando teléfonos, contraseñas, tokens y documentos personales.
+
+No compartas aquí el archivo `.env`, contraseñas, claves privadas, tokens JWT ni credenciales de firma.
+
+## 9. Criterio para cerrar el piloto
+
+El piloto sólo se considera listo cuando:
+1. Todas las pruebas críticas de autenticación, permisos, tarifas, viajes y privacidad están aprobadas.
+2. Se completa al menos un viaje real de prueba entre dos cuentas en dispositivos Android.
+3. No quedan errores críticos o altos abiertos.
+4. Las tarifas y el área de cobertura fueron confirmadas por el sindicato.
+5. La API de pruebas es accesible desde los teléfonos mediante una dirección HTTPS o una red local controlada.
+
+La aprobación de GitHub Actions acredita únicamente las comprobaciones automatizadas del código; no acredita estos pasos manuales.
+
+## 10. Límites antes de producción
 - No se ha desplegado la API ni configurado una base de datos productiva.
 - GPS, mapas y rutas aún requieren pruebas en dispositivos físicos.
 - OSRM público y teselas públicas de OpenStreetMap son sólo para pruebas de bajo volumen; producción requiere proveedores/infraestructura adecuados y respetar sus condiciones.
