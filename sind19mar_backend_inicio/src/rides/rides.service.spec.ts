@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { PaymentMethod, RideStatus } from '@prisma/client';
+import { RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RidesService } from './rides.service';
 
