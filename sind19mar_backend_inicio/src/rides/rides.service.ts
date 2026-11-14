@@ -108,8 +108,16 @@ export class RidesService {
         throw new BadRequestException('Rol no autorizado para cancelar viajes.');
       }
 
+      // Revalida propietario y estado en la misma escritura para cerrar carreras
+      // entre la lectura inicial y la cancelación.
+      const ownershipWhere = actor.role === 'PASSENGER'
+        ? { passengerId: actor.passengerId }
+        : actor.role === 'DRIVER'
+          ? { driverId: actor.driverId }
+          : {};
+
       const changed = await tx.ride.updateMany({
-        where: { id: rideId, status: ride.status },
+        where: { id: rideId, status: ride.status, ...ownershipWhere },
         data: { status: RideStatus.CANCELLED, cancelledAt: new Date() },
       });
       if (changed.count !== 1) throw new ConflictException('El viaje cambió mientras se procesaba la cancelación.');
