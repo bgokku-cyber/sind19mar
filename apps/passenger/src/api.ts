@@ -81,3 +81,47 @@ export async function getMyRides() {
 export async function cancelRide(rideId: string) {
   return request<PassengerRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
 }
+
+export type CreatePassengerRideInput = {
+  originAddress: string;
+  originLatitude: number;
+  originLongitude: number;
+  destinationAddress: string;
+  destinationLatitude: number;
+  destinationLongitude: number;
+  paymentMethod: 'CASH' | 'DIGITAL';
+};
+
+/** Crea una solicitud usando coordenadas reales; la identidad del pasajero la obtiene la API del token. */
+export async function createRide(input: CreatePassengerRideInput) {
+  const addresses = [input.originAddress, input.destinationAddress];
+  if (addresses.some((address) => typeof address !== 'string' || !address.trim())) {
+    throw new Error('Debes indicar el origen y el destino.');
+  }
+  const coordinates = [
+    input.originLatitude, input.originLongitude,
+    input.destinationLatitude, input.destinationLongitude,
+  ];
+  if (!coordinates.every(Number.isFinite)) {
+    throw new Error('Selecciona ubicaciones con coordenadas válidas.');
+  }
+  if (input.originLatitude < -90 || input.originLatitude > 90 ||
+      input.destinationLatitude < -90 || input.destinationLatitude > 90 ||
+      input.originLongitude < -180 || input.originLongitude > 180 ||
+      input.destinationLongitude < -180 || input.destinationLongitude > 180) {
+    throw new Error('Las coordenadas de origen o destino están fuera de rango.');
+  }
+  return request<PassengerRide>('/rides', {
+    method: 'POST',
+    body: JSON.stringify({
+      originAddress: input.originAddress.trim(),
+      originLatitude: input.originLatitude,
+      originLongitude: input.originLongitude,
+      destinationAddress: input.destinationAddress.trim(),
+      destinationLatitude: input.destinationLatitude,
+      destinationLongitude: input.destinationLongitude,
+      paymentMethod: input.paymentMethod,
+    }),
+  });
+}
+
