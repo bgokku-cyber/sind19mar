@@ -4,6 +4,7 @@ import { RoutingService } from './routing.service';
 describe('RoutingService', () => {
   const originalFetch = global.fetch;
   const originalBase = process.env.ROUTING_BASE_URL;
+  const originalSecret = process.env.JWT_SECRET;
   const originalCoverage = {
     lat: process.env.MAP_CENTER_LATITUDE,
     lon: process.env.MAP_CENTER_LONGITUDE,
@@ -13,6 +14,8 @@ describe('RoutingService', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
     if (originalBase === undefined) delete process.env.ROUTING_BASE_URL;
     else process.env.ROUTING_BASE_URL = originalBase;
     for (const [key, value] of Object.entries({
@@ -45,6 +48,7 @@ describe('RoutingService', () => {
   });
 
   it('calculates fare only when all official tariff variables are configured', async () => {
+    process.env.JWT_SECRET = 'test-secret-that-is-long-enough';
     process.env.FARE_BASE_BOB = '5';
     process.env.FARE_PER_KM_BOB = '2';
     process.env.FARE_MINIMUM_BOB = '8';
@@ -57,6 +61,16 @@ describe('RoutingService', () => {
       { latitude: -16.51, longitude: -68.14 },
     );
     expect(result.fare).toEqual({ currency: 'BOB', distanceKm: 3, amount: 11, pricingVersion: 'env-v1' });
+    expect(typeof result.quoteToken).toBe('string');
+    expect(service.verifyQuoteToken(result.quoteToken!, { latitude: -16.5, longitude: -68.15 }, { latitude: -16.51, longitude: -68.14 })).toEqual(result.fare);
+  });
+
+  it('rejects a signed quote token for different coordinates', async () => {
+    process.env.JWT_SECRET = 'test-secret-that-is-long-enough';
+    process.env.FARE_BASE_BOB = '5'; process.env.FARE_PER_KM_BOB = '2'; process.env.FARE_MINIMUM_BOB = '8';
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ code: 'Ok', routes: [{ distance: 3000, duration: 600 }] }) }) as any;
+    const quote = await service.quote({ latitude: -16.5, longitude: -68.15 }, { latitude: -16.51, longitude: -68.14 });
+    expect(() => service.verifyQuoteToken(quote.quoteToken!, { latitude: -16.4, longitude: -68.15 }, { latitude: -16.51, longitude: -68.14 })).toThrow();
   });
 
   it('rejects invalid coordinates before calling the provider', async () => {
