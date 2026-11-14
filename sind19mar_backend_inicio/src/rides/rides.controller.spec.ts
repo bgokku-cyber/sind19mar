@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { RideStatus, UserRole } from '@prisma/client';
+import { PaymentMethod, RideStatus, UserRole } from '@prisma/client';
 import { RidesController } from './rides.controller';
 import { RidesService } from './rides.service';
 
@@ -27,7 +27,7 @@ describe('RidesController', () => {
   it('uses the authenticated passenger id and validates ride input', async () => {
     const { controller, ridesService } = makeController();
     await expect(controller.create({
-      pickupAddress: 'Centro', dropoffAddress: 'Sopocachi',
+      originAddress: 'Centro', originLatitude: -16.5, originLongitude: -68.15, destinationAddress: 'Sopocachi', destinationLatitude: -16.52, destinationLongitude: -68.12, paymentMethod: PaymentMethod.CASH,
     } as any, { user: { role: UserRole.PASSENGER, passenger: { id: 'passenger-auth' } } }))
       .resolves.toEqual({ id: 'ride-1' });
     expect(ridesService.create).toHaveBeenCalledWith(expect.objectContaining({ passengerId: 'passenger-auth' }));
@@ -35,7 +35,7 @@ describe('RidesController', () => {
 
   it('rejects invalid ride input before calling the service', () => {
     const { controller, ridesService } = makeController();
-    expect(() => controller.create({ pickupAddress: '', dropoffAddress: '' } as any, {
+    expect(() => controller.create({ originAddress: '', originLatitude: -16.5, originLongitude: -68.15, destinationAddress: '', destinationLatitude: -16.52, destinationLongitude: -68.12, paymentMethod: PaymentMethod.CASH } as any, {
       user: { role: UserRole.PASSENGER, passenger: { id: 'passenger-1' } },
     })).toThrow(BadRequestException);
     expect(ridesService.create).not.toHaveBeenCalled();
