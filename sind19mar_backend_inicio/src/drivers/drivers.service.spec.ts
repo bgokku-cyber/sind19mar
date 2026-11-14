@@ -31,6 +31,34 @@ describe('DriversService', () => {
     expect(prisma.vehicle.create).not.toHaveBeenCalled();
   });
 
+  it('rejects vehicle fields that exceed their allowed lengths', async () => {
+    const { service, prisma } = makeService();
+
+    await expect(service.addVehicle('driver-1', {
+      make: 'T'.repeat(61), model: 'Corolla', color: 'Blanco',
+      plateNumber: '1234ABC', year: 2020,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.driver.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects a vehicle plate that is longer than the accepted limit', async () => {
+    const { service, prisma } = makeService();
+
+    await expect(service.addVehicle('driver-1', {
+      make: 'Toyota', model: 'Corolla', color: 'Blanco',
+      plateNumber: 'A'.repeat(16), year: 2020,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.vehicle.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-object vehicle payload', async () => {
+    const { service, prisma } = makeService();
+
+    await expect(service.addVehicle('driver-1', null))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.driver.findUnique).not.toHaveBeenCalled();
+  });
+
   it('stores a valid vehicle normalized and inactive pending approval', async () => {
     const vehicle = { id: 'vehicle-1', plateNumber: '1234ABC', isActive: false };
     const { service, prisma } = makeService({
