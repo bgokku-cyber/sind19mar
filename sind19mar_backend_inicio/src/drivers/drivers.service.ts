@@ -69,6 +69,18 @@ export class DriversService {
       update: { latitude: new Prisma.Decimal(input.latitude), longitude: new Prisma.Decimal(input.longitude), recordedAt: new Date() },
       select: { latitude: true, longitude: true, recordedAt: true },
     });
+
+    // Revalida después de escribir para cerrar la carrera con una desconexión simultánea.
+    const currentDriver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { availability: true, user: { select: { status: true } } },
+    });
+    if (!currentDriver || currentDriver.user.status !== 'ACTIVE' ||
+        !([DriverAvailability.AVAILABLE, DriverAvailability.ON_TRIP] as DriverAvailability[]).includes(currentDriver.availability)) {
+      await this.prisma.driverLocation.deleteMany({ where: { driverId } });
+      throw new ForbiddenException('El conductor se desconectó; ya no se comparte su ubicación.');
+    }
+
     return { latitude: Number(location.latitude), longitude: Number(location.longitude), recordedAt: location.recordedAt };
   }
 
