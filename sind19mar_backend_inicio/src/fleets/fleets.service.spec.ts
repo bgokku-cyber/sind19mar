@@ -61,6 +61,7 @@ describe('FleetsService', () => {
       driver: {
         findFirst: jest.fn().mockResolvedValue({ id: 'driver-1' }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findUnique: jest.fn(),
       },
     });
 
