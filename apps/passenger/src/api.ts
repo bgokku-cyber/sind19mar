@@ -91,6 +91,7 @@ export type CreatePassengerRideInput = {
   destinationLatitude: number;
   destinationLongitude: number;
   paymentMethod: 'CASH' | 'DIGITAL';
+  routeQuoteToken: string;
 };
 
 /** Crea una solicitud usando coordenadas reales; la identidad del pasajero la obtiene la API del token. */
@@ -122,6 +123,7 @@ export async function createRide(input: CreatePassengerRideInput) {
       destinationLatitude: input.destinationLatitude,
       destinationLongitude: input.destinationLongitude,
       paymentMethod: input.paymentMethod,
+      routeQuoteToken: input.routeQuoteToken,
     }),
   });
 }
@@ -152,6 +154,7 @@ export type RouteQuote = {
   geometry: { type: 'LineString'; coordinates: [number, number][] } | null;
   fare: { currency: 'BOB'; distanceKm: number; amount: number; pricingVersion: string } | null;
   fareUnavailableReason: string | null;
+  quoteToken: string | null;
 };
 
 /** Cotización vial calculada por el backend; no calcula precios en el dispositivo. */
