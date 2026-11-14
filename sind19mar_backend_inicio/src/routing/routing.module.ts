@@ -8,5 +8,6 @@ import { RoutingService } from './routing.service';
   imports: [AuthModule],
   controllers: [RoutingController],
   providers: [RoutingService, JwtAuthGuard],
+  exports: [RoutingService],
 })
 export class RoutingModule {}
