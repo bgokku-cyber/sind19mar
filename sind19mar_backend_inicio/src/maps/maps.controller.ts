@@ -8,7 +8,7 @@ const DEFAULTS = {
   zoom: 12,
   coverageRadiusKm: 25,
   provider: 'openstreetmap',
-  tileUrlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
 
 function numberFromEnv(name: string, fallback: number, min: number, max: number): number {
