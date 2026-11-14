@@ -71,6 +71,7 @@ La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`.
 ### Rutas viales y cotización preliminar
 - `GET /api/routes/quote?originLatitude=...&originLongitude=...&destinationLatitude=...&destinationLongitude=...` requiere JWT de pasajero.
 - El backend consulta un proveedor compatible con OSRM, devuelve distancia vial en km, duración estimada en minutos y geometría simplificada para dibujar la ruta.
+- La cotización tarifada devuelve un token firmado con `JWT_SECRET`, válido por cinco minutos y vinculado exactamente a las coordenadas. Al crear el viaje, el backend verifica la firma, vencimiento y ubicaciones, y guarda el importe firmado; el cliente no puede cambiar el precio.
 - El proveedor se configura con `ROUTING_PROVIDER` y `ROUTING_BASE_URL`. El servidor público `router.project-osrm.org` es únicamente para desarrollo/pruebas de bajo volumen; producción requiere un servicio contratado o instancia propia, límites de uso y monitoreo.
 - Si las variables de tarifa BOB no están configuradas, la respuesta devuelve `fare: null` y explica que la tarifa oficial no está disponible. No se inventa un precio.
 - Esta cotización todavía no se persiste en el viaje ni habilita la solicitud del pasajero. Antes se debe aprobar la tabla tarifaria del sindicato y verificar proveedor, cobertura, tiempos y condiciones de operación.
