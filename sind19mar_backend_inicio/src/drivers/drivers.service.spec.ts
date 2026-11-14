@@ -7,11 +7,47 @@ describe('DriversService', () => {
   const makeService = (overrides: Record<string, any> = {}) => {
     const prisma = {
       driver: { findUnique: jest.fn(), update: jest.fn() },
+      driverLocation: { upsert: jest.fn(), deleteMany: jest.fn() },
       vehicle: { create: jest.fn() },
       ...overrides,
     } as unknown as PrismaService;
     return { service: new DriversService(prisma), prisma };
   };
+
+  it('rejects invalid GPS coordinates before querying the driver', async () => {
+    const { service, prisma } = makeService();
+    await expect(service.updateLocation('driver-1', { latitude: 999, longitude: 0 }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.driver.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('only stores a valid GPS fix for an approved and connected driver', async () => {
+    const recordedAt = new Date();
+    const { service, prisma } = makeService({
+      driver: { findUnique: jest.fn().mockResolvedValue({
+        id: 'driver-1', availability: DriverAvailability.AVAILABLE, verifiedAt: recordedAt,
+        user: { status: 'ACTIVE' },
+      }) },
+      driverLocation: { upsert: jest.fn().mockResolvedValue({
+        latitude: '-16.5', longitude: '-68.15', recordedAt,
+      }) },
+    });
+    await expect(service.updateLocation('driver-1', { latitude: -16.5, longitude: -68.15 }))
+      .resolves.toMatchObject({ latitude: -16.5, longitude: -68.15, recordedAt });
+    expect(prisma.driverLocation.upsert).toHaveBeenCalled();
+  });
+
+  it('does not store location for an offline driver', async () => {
+    const { service, prisma } = makeService({
+      driver: { findUnique: jest.fn().mockResolvedValue({
+        id: 'driver-1', availability: DriverAvailability.OFFLINE, verifiedAt: new Date(),
+        user: { status: 'ACTIVE' },
+      }) },
+    });
+    await expect(service.updateLocation('driver-1', { latitude: -16.5, longitude: -68.15 }))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.driverLocation.upsert).not.toHaveBeenCalled();
+  });
 
   it('rejects incomplete vehicle data before querying the driver', async () => {
     const { service, prisma } = makeService();
