@@ -5,7 +5,7 @@ import { FleetsService } from './fleets.service';
 
 describe('FleetsService', () => {
   const makeService = (overrides: Record<string, any> = {}) => {
-    const prisma = {
+    const defaults = {
       fleet: {
         findUnique: jest.fn(),
       },
@@ -14,7 +14,12 @@ describe('FleetsService', () => {
         updateMany: jest.fn(),
         findUnique: jest.fn(),
       },
+    };
+    const prisma = {
+      ...defaults,
       ...overrides,
+      fleet: { ...defaults.fleet, ...overrides.fleet },
+      driver: { ...defaults.driver, ...overrides.driver },
     } as unknown as PrismaService;
     return { service: new FleetsService(prisma), prisma };
   };
