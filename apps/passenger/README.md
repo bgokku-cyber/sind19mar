@@ -7,6 +7,9 @@ Aplicación Android construida con Expo y React Native.
 - Conexión con los endpoints `/api/auth/login` y `/api/auth/register/passenger`.
 - Almacenamiento local del token de sesión.
 - Pantalla inicial con campos de origen y destino, y método de pago en efectivo.
+- Permiso de ubicación en primer plano con Expo Location (SDK 57).
+- Captura de GPS para el punto de recogida y geocodificación del destino escrito.
+- Validación preliminar del radio de cobertura antes de habilitar futuras solicitudes.
 - Diseño adaptable con la identidad verde oscuro, verde brillante y blanco.
 
 ## Configuración
@@ -18,7 +21,7 @@ Aplicación Android construida con Expo y React Native.
 No usar `localhost` en un teléfono físico: debe indicarse una dirección accesible desde el dispositivo.
 
 ## Funciones pendientes
-La pantalla de mapa es solo una maqueta visual. La solicitud de viajes permanece deshabilitada hasta integrar mapas, permisos de ubicación y coordenadas reales. También faltan historial conectado, seguimiento en vivo, notificaciones y pruebas en dispositivos Android.
+La pantalla de mapa sigue siendo una maqueta visual: todavía no hay mapa interactivo, selección de puntos sobre el mapa ni rutas. El GPS y la geocodificación permiten validar coordenadas reales, pero el botón no crea un viaje ni busca conductores hasta completar la integración cartográfica y el flujo operativo de conductor. Faltan seguimiento en vivo, notificaciones y pruebas en dispositivos Android.
 
 
 ## Moneda
