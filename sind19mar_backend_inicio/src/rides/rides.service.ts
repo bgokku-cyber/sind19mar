@@ -41,6 +41,11 @@ export class RidesService {
       },
       orderBy: { requestedAt: 'desc' },
       take: 100,
+      ...(filters.passengerId ? {
+        include: {
+          driver: { select: { location: { select: { latitude: true, longitude: true, recordedAt: true } } } },
+        },
+      } : {}),
     });
   }
 
