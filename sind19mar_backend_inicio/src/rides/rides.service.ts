@@ -2,12 +2,15 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PaymentMethod, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
+import { assertRideWithinMapCoverage } from '../maps/map-coverage';
 
 @Injectable()
 export class RidesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(input: CreateRideDto) {
+    // La cobertura se valida en servidor; no se confía en límites enviados por la app.
+    assertRideWithinMapCoverage(input.originLatitude, input.originLongitude, input.destinationLatitude, input.destinationLongitude);
     const passenger = await this.prisma.passenger.findUnique({ where: { id: input.passengerId } });
     if (!passenger) throw new NotFoundException('No se encontró el perfil del pasajero.');
 
