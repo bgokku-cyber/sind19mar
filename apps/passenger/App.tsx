@@ -38,6 +38,17 @@ export default function App() {
     restoreSession().then(async ok => { setAuthenticated(ok); if (ok) await refreshRides(); }).finally(() => setCheckingSession(false));
   }, []);
 
+  // Mantiene el historial y el estado de los viajes al día mientras la sesión está abierta.
+  useEffect(() => {
+    if (!authenticated) return;
+    const interval = setInterval(() => {
+      void getMyRides().then(setRides).catch(() => {
+        // La consulta periódica no interrumpe la experiencia; el usuario puede reintentar manualmente.
+      });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [authenticated]);
+
   async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
 
   async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }
