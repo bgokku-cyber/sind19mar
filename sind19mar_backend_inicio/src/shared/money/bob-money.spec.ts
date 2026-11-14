@@ -6,28 +6,36 @@ import {
 
 describe('BOB money helpers', () => {
   describe('parseBobAmount', () => {
-    it.each([
+    const validCases: Array<[string, number]> = [
       ['0', 0],
       ['12', 1200],
       ['12.3', 1230],
       ['12.34', 1234],
       ['001.05', 105],
-    ])('parses %s into integer centavos', (input, expected) => {
-      expect(parseBobAmount(input)).toEqual({
-        minorUnits: expected,
-        currency: 'BOB',
+    ];
+
+    validCases.forEach(([input, expected]) => {
+      it(`parses ${input} into integer centavos`, () => {
+        expect(parseBobAmount(input)).toEqual({
+          minorUnits: expected,
+          currency: 'BOB',
+        });
       });
     });
 
-    it.each([
+    const invalidCases = [
       '1,20',
       '1.234',
       '-1.00',
       '1e3',
       '',
       '90071992547409.92',
-    ])('rejects invalid or unsafe amount %s', (input) => {
-      expect(() => parseBobAmount(input)).toThrow();
+    ];
+
+    invalidCases.forEach((input) => {
+      it(`rejects invalid or unsafe amount ${input}`, () => {
+        expect(() => parseBobAmount(input)).toThrow();
+      });
     });
   });
 
@@ -57,6 +65,15 @@ describe('BOB money helpers', () => {
 
     it('returns zero for an empty sum', () => {
       expect(addBobAmounts()).toEqual({ minorUnits: 0, currency: 'BOB' });
+    });
+
+    it('rejects a sum that exceeds the safe integer range', () => {
+      expect(() =>
+        addBobAmounts(
+          { minorUnits: Number.MAX_SAFE_INTEGER, currency: 'BOB' },
+          { minorUnits: 1, currency: 'BOB' },
+        ),
+      ).toThrow(RangeError);
     });
   });
 });
