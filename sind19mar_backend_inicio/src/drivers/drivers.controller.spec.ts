@@ -9,9 +9,27 @@ describe('DriversController', () => {
       getProfile: jest.fn().mockResolvedValue({ id: 'driver-1' }),
       addVehicle: jest.fn().mockResolvedValue({ id: 'vehicle-1' }),
       setAvailability: jest.fn().mockResolvedValue({ availability: DriverAvailability.AVAILABLE }),
+      updateLocation: jest.fn().mockResolvedValue({ latitude: -16.5, longitude: -68.15 }),
     } as unknown as DriversService;
     return { controller: new DriversController(drivers), drivers };
   };
+
+  it('blocks passengers from submitting a driver location', () => {
+    const { controller, drivers } = makeController();
+    expect(() => controller.updateLocation({
+      user: { role: UserRole.PASSENGER, passenger: { id: 'passenger-1' } },
+    }, { latitude: -16.5, longitude: -68.15 })).toThrow(ForbiddenException);
+    expect(drivers.updateLocation).not.toHaveBeenCalled();
+  });
+
+  it('uses the authenticated driver id when storing GPS coordinates', async () => {
+    const { controller, drivers } = makeController();
+    const coords = { latitude: -16.5, longitude: -68.15 };
+    await expect(controller.updateLocation({
+      user: { role: UserRole.DRIVER, driver: { id: 'driver-authenticated' } },
+    }, coords)).resolves.toEqual(coords);
+    expect(drivers.updateLocation).toHaveBeenCalledWith('driver-authenticated', coords);
+  });
 
   it('blocks passengers from reading a driver profile', () => {
     const { controller, drivers } = makeController();
