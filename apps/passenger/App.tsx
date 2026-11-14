@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { cancelRide, getMyRides, login, logout, PassengerRide, register, restoreSession } from './src/api';
+import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -31,10 +31,12 @@ export default function App() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [rides, setRides] = useState<PassengerRide[]>([]);
+  const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [loadingRides, setLoadingRides] = useState(false);
   const [rideActionBusy, setRideActionBusy] = useState(false);
 
   useEffect(() => {
+    getMapConfig().then(setMapConfig).catch(() => setMapConfig(null));
     restoreSession().then(async ok => { setAuthenticated(ok); if (ok) await refreshRides(); }).finally(() => setCheckingSession(false));
   }, []);
 
@@ -138,7 +140,7 @@ export default function App() {
             {Array.from({ length: 5 }).map((_, i) => <View key={`v${i}`} style={[styles.roadVertical, { left: 24 + i * 66, transform: [{ rotate: '12deg' }] }]} />)}
             <View style={styles.mapPin}><Text style={styles.mapPinText}>●</Text></View>
           </View>
-          <View style={styles.mapCaption}><Text style={styles.mapCaptionTitle}>La Paz, Bolivia</Text><Text style={styles.mapCaptionText}>Vista previa · mapa por integrar</Text></View>
+          <View style={styles.mapCaption}><Text style={styles.mapCaptionTitle}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country}` : 'Zona de servicio'}</Text><Text style={styles.mapCaptionText}>Vista previa · mapa por integrar</Text></View>
         </View>
         <View style={styles.tripCard}>
           <Text style={styles.tripTitle}>Solicita tu viaje</Text>
