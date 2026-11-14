@@ -24,6 +24,7 @@ describe('RidesService', () => {
       destinationLatitude: -16.51,
       destinationLongitude: -68.14,
       estimatedFare: 0.01,
+      routeQuoteToken: 'signed-server-token',
       paymentMethod: 'CASH' as any,
     });
     expect(result).toEqual({ id: 'ride-1', estimatedFare: '11' });
@@ -208,7 +209,7 @@ describe('RidesService', () => {
       },
     ]);
     const prisma = { ride: { findMany } } as unknown as PrismaService;
-    const service = new RidesService(prisma, { quote: jest.fn() } as any);
+    const service = new RidesService(prisma, { verifyQuoteToken: jest.fn() } as any);
 
     const result = await service.list({ passengerId: 'passenger-1' }) as any[];
     expect(result[0].driver.location).toEqual({
