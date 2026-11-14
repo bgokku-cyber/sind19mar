@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
-import MapView, { Marker, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession } from './src/api';
+import { cancelRide, getMapConfig, getMyRides, MapConfig, login, logout, PassengerRide, register, restoreSession, getRouteQuote, RouteQuote, createRide } from './src/api';
 
 const C = {
   dark: '#073B2B',
@@ -36,6 +36,7 @@ export default function App() {
   const [destinationCoordinates, setDestinationCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [rides, setRides] = useState<PassengerRide[]>([]);
+  const [routeQuote, setRouteQuote] = useState<RouteQuote | null>(null);
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [loadingRides, setLoadingRides] = useState(false);
   const [rideActionBusy, setRideActionBusy] = useState(false);
@@ -75,6 +76,18 @@ export default function App() {
     } finally { setLocationBusy(false); }
   }
 
+  async function confirmRideRequest(target: { latitude: number; longitude: number }) {
+    if (!originCoordinates) return;
+    setRideActionBusy(true);
+    try {
+      await createRide({ originAddress: origin.trim(), originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationAddress: destination.trim(), destinationLatitude: target.latitude, destinationLongitude: target.longitude, paymentMethod: 'CASH' });
+      setRouteQuote(null);
+      await refreshRides();
+      Alert.alert('Solicitud enviada', 'Tu solicitud fue registrada. Los conductores disponibles podrán aceptarla.');
+    } catch (error) { Alert.alert('No se pudo solicitar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); }
+    finally { setRideActionBusy(false); }
+  }
+
   async function submitRide() {
     if (!originCoordinates) { Alert.alert('Falta el punto de recogida', 'Usa tu ubicación actual para registrar coordenadas reales del origen.'); return; }
     if (!destination.trim()) { Alert.alert('Falta el destino', 'Escribe la dirección de destino.'); return; }
@@ -89,17 +102,15 @@ export default function App() {
         setDestinationCoordinates(target);
       }
       if (!mapConfig) throw new Error('No se pudo cargar la configuración geográfica del servicio.');
-      const toRadians = (degrees: number) => degrees * Math.PI / 180;
-      const dLat = toRadians(target.latitude - mapConfig.center.latitude);
-      const dLon = toRadians(target.longitude - mapConfig.center.longitude);
-      const centerLat = toRadians(mapConfig.center.latitude);
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(centerLat) * Math.cos(toRadians(target.latitude)) * Math.sin(dLon / 2) ** 2;
-      const distance = 6371.0088 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      if (distance > mapConfig.coverageRadiusKm) throw new Error('El destino está fuera de la zona de cobertura configurada.');
-      Alert.alert('Ubicaciones verificadas', 'El origen GPS y el destino están dentro de la zona de cobertura. La solicitud de viaje seguirá deshabilitada hasta terminar el mapa y el flujo operativo del conductor.');
-    } catch (error) {
-      Alert.alert('No se pudo registrar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.');
-    } finally { setRideActionBusy(false); }
+      const quote = await getRouteQuote({ originLatitude: originCoordinates.latitude, originLongitude: originCoordinates.longitude, destinationLatitude: target.latitude, destinationLongitude: target.longitude });
+      setRouteQuote(quote);
+      if (!quote.fare) { Alert.alert('Ruta calculada', 'Distancia vial: ' + quote.distanceKm.toFixed(2) + ' km · Tiempo estimado: ' + quote.durationMinutes + ' min. ' + (quote.fareUnavailableReason || 'La tarifa oficial no está configurada.')); return; }
+      Alert.alert('Confirmar solicitud', 'Distancia: ' + quote.distanceKm.toFixed(2) + ' km\nTiempo estimado: ' + quote.durationMinutes + ' min\nTarifa estimada: Bs ' + quote.fare.amount.toFixed(2).replace('.', ',') + '\n\n¿Deseas solicitar este viaje?', [
+        { text: 'Ahora no', style: 'cancel' },
+        { text: 'Solicitar viaje', onPress: () => { void confirmRideRequest(target!); } },
+      ]);
+    } catch (error) { Alert.alert('No se pudo cotizar el viaje', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); }
+    finally { setRideActionBusy(false); }
   }
   async function handleCancelRide(id: string) { setRideActionBusy(true); try { await cancelRide(id); await refreshRides(); } catch (error) { Alert.alert('No se pudo cancelar', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setRideActionBusy(false); } }
 
@@ -210,6 +221,7 @@ export default function App() {
             <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'} />
             {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
             {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
+            {routeQuote?.geometry?.coordinates?.length ? <Polyline coordinates={routeQuote.geometry.coordinates.map(([longitude, latitude]) => ({ latitude, longitude }))} strokeColor={C.green} strokeWidth={4} /> : null}
             {driverLocationIsFresh && sharedDriverLocation && <Marker coordinate={{ latitude: Number(sharedDriverLocation.latitude), longitude: Number(sharedDriverLocation.longitude) }} title="Tu conductor" pinColor="#F59E0B" />}
           </MapView>
           <View style={styles.mapCaption}>
@@ -229,8 +241,8 @@ export default function App() {
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
-          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText} >Validar ubicaciones</Text>}</Pressable>
-          <Text style={styles.notice}>El origen usa GPS y el destino se geocodifica. Esta validación no crea un viaje; el mapa interactivo y la asignación operativa siguen pendientes.</Text>
+          <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText} >Cotizar y solicitar viaje</Text>}</Pressable>
+          <Text style={styles.notice}>La ruta y la tarifa se calculan en el servidor. La solicitud sólo se envía si existe una tarifa oficial configurada y confirmas el precio.</Text>
         </View>
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
