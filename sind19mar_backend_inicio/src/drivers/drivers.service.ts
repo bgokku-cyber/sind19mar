@@ -13,13 +13,32 @@ export class DriversService {
   }
 
   async addVehicle(driverId: string, input: any) {
-    if (!input || typeof input.make !== 'string' || !input.make.trim() || typeof input.model !== 'string' || !input.model.trim() || typeof input.color !== 'string' || !input.color.trim() || typeof input.plateNumber !== 'string' || input.plateNumber.trim().length < 4 || !Number.isInteger(input.year) || input.year < 1980 || input.year > new Date().getFullYear() + 1) {
+    if (!input || typeof input !== 'object') {
       throw new BadRequestException('Datos del vehículo incompletos o inválidos.');
     }
+
+    const make = typeof input.make === 'string' ? input.make.trim() : '';
+    const model = typeof input.model === 'string' ? input.model.trim() : '';
+    const color = typeof input.color === 'string' ? input.color.trim() : '';
+    const plateNumber = typeof input.plateNumber === 'string' ? input.plateNumber.trim().toUpperCase() : '';
+
+    if (
+      make.length < 1 || make.length > 60 ||
+      model.length < 1 || model.length > 60 ||
+      color.length < 1 || color.length > 40 ||
+      plateNumber.length < 4 || plateNumber.length > 15 ||
+      !Number.isInteger(input.year) || input.year < 1980 ||
+      input.year > new Date().getFullYear() + 1
+    ) {
+      throw new BadRequestException('Datos del vehículo incompletos o inválidos. Revisa marca, modelo, color, placa y año.');
+    }
+
     const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
     if (!driver) throw new NotFoundException('No se encontró el perfil del conductor.');
     try {
-      return await this.prisma.vehicle.create({ data: { driverId, make: input.make.trim(), model: input.model.trim(), color: input.color.trim(), plateNumber: input.plateNumber.trim().toUpperCase(), year: input.year, isActive: false } });
+      return await this.prisma.vehicle.create({
+        data: { driverId, make, model, color, plateNumber, year: input.year, isActive: false },
+      });
     } catch (error: any) {
       if (error?.code === 'P2002') throw new ConflictException('La placa ya está registrada.');
       throw error;
