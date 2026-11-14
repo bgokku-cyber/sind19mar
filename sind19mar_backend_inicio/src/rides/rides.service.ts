@@ -34,7 +34,7 @@ export class RidesService {
     if (filters.passengerId && filters.driverId) {
       throw new BadRequestException('Usa passengerId o driverId, no ambos.');
     }
-    return this.prisma.ride.findMany({
+    const rides = await this.prisma.ride.findMany({
       where: {
         ...(filters.passengerId ? { passengerId: filters.passengerId } : {}),
         ...(filters.driverId ? { driverId: filters.driverId } : {}),
@@ -46,6 +46,20 @@ export class RidesService {
           driver: { select: { location: { select: { latitude: true, longitude: true, recordedAt: true } } } },
         },
       } : {}),
+    });
+
+    if (!filters.passengerId) return rides;
+    const now = Date.now();
+    const trackableStatuses: RideStatus[] = [RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING, RideStatus.IN_PROGRESS];
+    return rides.map((ride: any) => {
+      const location = ride.driver?.location;
+      const isFresh = location && now - new Date(location.recordedAt).getTime() <= 90_000;
+      return {
+        ...ride,
+        driver: ride.driver ? {
+          location: trackableStatuses.includes(ride.status) && isFresh ? location : null,
+        } : null,
+      };
     });
   }
 
