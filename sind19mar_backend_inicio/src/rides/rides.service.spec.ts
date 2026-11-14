@@ -208,7 +208,7 @@ describe('RidesService', () => {
       },
     ]);
     const prisma = { ride: { findMany } } as unknown as PrismaService;
-    const service = new RidesService(prisma);
+    const service = new RidesService(prisma, { quote: jest.fn() } as any);
 
     const result = await service.list({ passengerId: 'passenger-1' }) as any[];
     expect(result[0].driver.location).toEqual({
@@ -228,7 +228,7 @@ describe('RidesService', () => {
         driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt: staleAt } },
       }]) },
     } as unknown as PrismaService;
-    const service = new RidesService(prisma);
+    const service = new RidesService(prisma, { quote: jest.fn() } as any);
 
     const result = await service.list({ passengerId: 'passenger-1' }) as any[];
     expect(result[0].driver.location).toBeNull();
