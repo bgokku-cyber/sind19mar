@@ -66,3 +66,11 @@ La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`.
 - La fórmula es: máximo entre tarifa mínima y (tarifa base + kilómetros de ruta × precio por kilómetro). El resultado se redondea a dos decimales.
 - Variables previstas: `FARE_BASE_BOB`, `FARE_PER_KM_BOB` y `FARE_MINIMUM_BOB`. No se inventan valores predeterminados: si falta alguna variable o no es válida, la configuración tarifaria se considera no disponible.
 - **Todavía no se usa para crear viajes ni se expone como cotización pública.** Primero falta integrar y validar una distancia vial real (no distancia en línea recta), definir la política tarifaria del sindicato y conectar el cotizador al flujo de solicitud. El cliente nunca debe determinar la tarifa oficial.
+
+
+### Rutas viales y cotización preliminar
+- `GET /api/routes/quote?originLatitude=...&originLongitude=...&destinationLatitude=...&destinationLongitude=...` requiere JWT de pasajero.
+- El backend consulta un proveedor compatible con OSRM, devuelve distancia vial en km, duración estimada en minutos y geometría simplificada para dibujar la ruta.
+- El proveedor se configura con `ROUTING_PROVIDER` y `ROUTING_BASE_URL`. El servidor público `router.project-osrm.org` es únicamente para desarrollo/pruebas de bajo volumen; producción requiere un servicio contratado o instancia propia, límites de uso y monitoreo.
+- Si las variables de tarifa BOB no están configuradas, la respuesta devuelve `fare: null` y explica que la tarifa oficial no está disponible. No se inventa un precio.
+- Esta cotización todavía no se persiste en el viaje ni habilita la solicitud del pasajero. Antes se debe aprobar la tabla tarifaria del sindicato y verificar proveedor, cobertura, tiempos y condiciones de operación.
