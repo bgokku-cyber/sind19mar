@@ -69,7 +69,7 @@ describe('RidesService', () => {
     })).resolves.toEqual({ id: 'ride-1', status: RideStatus.CANCELLED });
 
     expect(tx.ride.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'ride-1', status: RideStatus.REQUESTED },
+      where: { id: 'ride-1', status: RideStatus.REQUESTED, passengerId: 'passenger-1' },
       data: expect.objectContaining({ status: RideStatus.CANCELLED }),
     }));
     expect(tx.driver.updateMany).not.toHaveBeenCalled();
@@ -95,6 +95,38 @@ describe('RidesService', () => {
       passengerId: 'passenger-1',
     })).rejects.toBeInstanceOf(ConflictException);
     expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+
+  it('allows an assigned driver to cancel only their own pre-trip ride and releases availability', async () => {
+    const tx = {
+      ride: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ride-2',
+          passengerId: 'passenger-2',
+          driverId: 'driver-2',
+          status: RideStatus.ACCEPTED,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-2', status: RideStatus.CANCELLED }),
+      },
+      driver: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.cancel('ride-2', {
+      role: 'DRIVER',
+      driverId: 'driver-2',
+    })).resolves.toEqual({ id: 'ride-2', status: RideStatus.CANCELLED });
+
+    expect(tx.ride.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'ride-2', status: RideStatus.ACCEPTED, driverId: 'driver-2' },
+      data: expect.objectContaining({ status: RideStatus.CANCELLED }),
+    }));
+    expect(tx.driver.updateMany).toHaveBeenCalledWith({
+      where: { id: 'driver-2', availability: 'ON_TRIP' },
+      data: { availability: 'AVAILABLE' },
+    });
   });
 
   it('releases the driver after the assigned ride is completed', async () => {
