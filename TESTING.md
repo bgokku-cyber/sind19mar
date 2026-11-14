@@ -56,6 +56,16 @@ En `apps/passenger` y `apps/driver`, por separado:
 
 Abre cada proyecto con Expo Go compatible o un emulador y autoriza ubicación en primer plano. Para probar ambos roles a la vez, inicia ambos proyectos en terminales separadas; idealmente usa dos teléfonos.
 
+### Generar APK instalable
+Cada app incluye un `eas.json` con perfil `preview` (APK para distribución interna) y `production` (Android App Bundle). Para compilar desde la cuenta del propietario:
+
+1. Instala EAS CLI: `npm install -g eas-cli`.
+2. Entra a la carpeta de cada app, inicia sesión con `eas login` y vincula el proyecto con `eas init`.
+3. Conserva el `projectId` que EAS agrega a la configuración Expo.
+4. Ejecuta `eas build --platform android --profile preview`.
+
+La compilación remota necesita la cuenta Expo del propietario y configurar credenciales de firma. No requiere guardar contraseñas ni claves en el repositorio. Esta configuración de perfiles no significa que ya exista un APK compilado.
+
 ## 6. Ejecutar el panel administrativo web
 En otra terminal:
 
