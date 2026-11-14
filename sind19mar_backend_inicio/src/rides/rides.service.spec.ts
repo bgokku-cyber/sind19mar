@@ -10,9 +10,7 @@ describe('RidesService', () => {
       ride: { create: jest.fn().mockResolvedValue({ id: 'ride-1', estimatedFare: '11' }) },
     } as any;
     const routing = {
-      quote: jest.fn().mockResolvedValue({
-        fare: { currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' },
-      }),
+      verifyQuoteToken: jest.fn().mockReturnValue({ currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' }),
     } as any;
     const service = new RidesService(prisma, routing);
     const result = await service.create({
@@ -38,7 +36,7 @@ describe('RidesService', () => {
     const prisma = {
       $transaction: jest.fn((callback: (client: any) => Promise<unknown>) => callback(tx)),
     } as unknown as PrismaService;
-    const routing = { quote: jest.fn().mockResolvedValue({ fare: { currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' } }) } as any;
+    const routing = { verifyQuoteToken: jest.fn().mockReturnValue({ currency: 'BOB', amount: 11, distanceKm: 3, pricingVersion: 'env-v1' }) } as any;
     return { service: new RidesService(prisma, routing), prisma };
   };
 
