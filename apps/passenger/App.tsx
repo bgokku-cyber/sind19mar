@@ -171,6 +171,10 @@ export default function App() {
     );
   }
 
+  const activeRide = rides.find(ride => ['ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'].includes(ride.status));
+  const sharedDriverLocation = activeRide?.driver?.location;
+  const driverLocationIsFresh = !!sharedDriverLocation && Date.now() - new Date(sharedDriverLocation.recordedAt).getTime() < 90000;
+
   return (
     <SafeAreaView style={styles.safeHome}>
       <StatusBar barStyle="light-content" backgroundColor={C.dark} />
@@ -206,10 +210,11 @@ export default function App() {
             <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'} />
             {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
             {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
+            {driverLocationIsFresh && sharedDriverLocation && <Marker coordinate={{ latitude: Number(sharedDriverLocation.latitude), longitude: Number(sharedDriverLocation.longitude) }} title="Tu conductor" pinColor="#F59E0B" />}
           </MapView>
           <View style={styles.mapCaption}>
             <Text style={styles.mapCaptionTitle}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country}` : 'Zona de servicio'}</Text>
-            <Text style={styles.mapCaptionText}>Toca el mapa para elegir el destino</Text>
+            <Text style={styles.mapCaptionText}>{driverLocationIsFresh ? 'Tu conductor aparece en el mapa' : 'Toca el mapa para elegir el destino'}</Text>
           </View>
           <Text style={styles.mapAttribution}>© OpenStreetMap contributors</Text>
         </View>
