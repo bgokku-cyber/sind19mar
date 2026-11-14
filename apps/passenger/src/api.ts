@@ -72,6 +72,7 @@ export type PassengerRide = {
   estimatedFare: string | number | null;
   paymentMethod: 'CASH' | 'DIGITAL';
   requestedAt: string;
+  driver?: { location: { latitude: string | number; longitude: string | number; recordedAt: string } | null } | null;
 };
 
 export async function getMyRides() {
