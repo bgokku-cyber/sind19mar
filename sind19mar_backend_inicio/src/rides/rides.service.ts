@@ -12,11 +12,11 @@ export class RidesService {
   async create(input: CreateRideDto) {
     // La cobertura se valida en servidor; no se confía en límites enviados por la app.
     assertRideWithinMapCoverage(input.originLatitude, input.originLongitude, input.destinationLatitude, input.destinationLongitude);
-    const routeQuote = await this.routing.quote(
+    const fare = this.routing.verifyQuoteToken(
+      input.routeQuoteToken,
       { latitude: input.originLatitude, longitude: input.originLongitude },
       { latitude: input.destinationLatitude, longitude: input.destinationLongitude },
     );
-    if (!routeQuote.fare) throw new ConflictException('No se pueden aceptar solicitudes hasta configurar y aprobar la tarifa oficial en bolivianos.');
     const passenger = await this.prisma.passenger.findUnique({ where: { id: input.passengerId } });
     if (!passenger) throw new NotFoundException('No se encontró el perfil del pasajero.');
 
@@ -31,7 +31,7 @@ export class RidesService {
         destinationLongitude: new Prisma.Decimal(input.destinationLongitude),
         // La tarifa oficial se vuelve a calcular aquí con la distancia vial del proveedor.
         // Nunca se acepta la tarifa estimada que envíe el cliente.
-        estimatedFare: new Prisma.Decimal(routeQuote.fare.amount),
+        estimatedFare: new Prisma.Decimal(fare.amount),
         paymentMethod: input.paymentMethod as PaymentMethod,
       },
     });
