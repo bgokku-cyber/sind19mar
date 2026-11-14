@@ -312,6 +312,7 @@ const styles = StyleSheet.create({
   mapCaption: { position: 'absolute', bottom: 10, left: 12, backgroundColor: C.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
   mapCaptionTitle: { color: C.dark, fontSize: 11, fontWeight: '800' },
   mapCaptionText: { color: C.muted, fontSize: 9, marginTop: 2 },
+  mapAttribution: { position: 'absolute', right: 7, bottom: 5, color: '#26352C', backgroundColor: 'rgba(255,255,255,0.85)', fontSize: 8, paddingHorizontal: 4, paddingVertical: 2 },
   tripCard: { backgroundColor: C.white, borderRadius: 19, padding: 18, borderWidth: 1, borderColor: '#E7EEE9' },
   tripTitle: { color: C.ink, fontSize: 19, fontWeight: '800' },
   tripHint: { color: C.muted, fontSize: 12, marginTop: 4, marginBottom: 17 },
