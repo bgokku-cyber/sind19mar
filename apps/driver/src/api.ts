@@ -84,3 +84,8 @@ export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'I
     method: 'POST', body: JSON.stringify({ status }),
   });
 }
+
+
+export async function cancelRide(rideId: string) {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
