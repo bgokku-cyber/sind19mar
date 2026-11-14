@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { MapsModule } from './maps/maps.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RidesModule } from './rides/rides.module';
+import { RoutingModule } from './routing/routing.module';
 
-@Module({ imports: [PrismaModule, AuthModule, DriversModule, AdminModule, FleetsModule, HealthModule, MapsModule, RidesModule] })
+@Module({ imports: [PrismaModule, AuthModule, DriversModule, AdminModule, FleetsModule, HealthModule, MapsModule, RidesModule, RoutingModule] })
 export class AppModule {}
