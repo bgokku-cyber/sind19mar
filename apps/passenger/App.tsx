@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
+import MapView, { Marker, UrlTile } from 'react-native-maps';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View,
@@ -182,12 +183,34 @@ export default function App() {
       </View>
       <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled">
         <View style={styles.mapCard}>
-          <View style={styles.mapGrid}>
-            {Array.from({ length: 6 }).map((_, i) => <View key={i} style={[styles.road, { top: 22 + i * 29, transform: [{ rotate: i % 2 ? '-8deg' : '7deg' }] }]} />)}
-            {Array.from({ length: 5 }).map((_, i) => <View key={`v${i}`} style={[styles.roadVertical, { left: 24 + i * 66, transform: [{ rotate: '12deg' }] }]} />)}
-            <View style={styles.mapPin}><Text style={styles.mapPinText}>●</Text></View>
+          <MapView
+            style={StyleSheet.absoluteFill}
+            initialRegion={{
+              latitude: originCoordinates?.latitude ?? mapConfig?.center.latitude ?? -16.5,
+              longitude: originCoordinates?.longitude ?? mapConfig?.center.longitude ?? -68.15,
+              latitudeDelta: 0.045,
+              longitudeDelta: 0.045,
+            }}
+            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+            onPress={event => {
+              const point = event.nativeEvent.coordinate;
+              setDestinationCoordinates(point);
+              void Location.reverseGeocodeAsync(point).then(places => {
+                const place = places[0];
+                const address = place ? [place.name, place.street, place.district, place.city].filter(Boolean).join(', ') : '';
+                setDestination(address || point.latitude.toFixed(6) + ', ' + point.longitude.toFixed(6));
+              }).catch(() => setDestination(point.latitude.toFixed(6) + ', ' + point.longitude.toFixed(6)));
+            }}
+          >
+            <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} />
+            {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
+            {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
+          </MapView>
+          <View style={styles.mapCaption}>
+            <Text style={styles.mapCaptionTitle}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country}` : 'Zona de servicio'}</Text>
+            <Text style={styles.mapCaptionText}>Toca el mapa para elegir el destino</Text>
           </View>
-          <View style={styles.mapCaption}><Text style={styles.mapCaptionTitle}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country}` : 'Zona de servicio'}</Text><Text style={styles.mapCaptionText}>Vista previa · mapa por integrar</Text></View>
+          <Text style={styles.mapAttribution}>© OpenStreetMap contributors</Text>
         </View>
         <View style={styles.tripCard}>
           <Text style={styles.tripTitle}>Solicita tu viaje</Text>
