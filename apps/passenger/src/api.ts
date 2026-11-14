@@ -143,3 +143,19 @@ export type MapConfig = {
 export async function getMapConfig() {
   return request<MapConfig>('/maps/config');
 }
+
+
+export type RouteQuote = {
+  provider: string;
+  distanceKm: number;
+  durationMinutes: number;
+  geometry: { type: 'LineString'; coordinates: [number, number][] } | null;
+  fare: { currency: 'BOB'; distanceKm: number; amount: number; pricingVersion: string } | null;
+  fareUnavailableReason: string | null;
+};
+
+/** Cotización vial calculada por el backend; no calcula precios en el dispositivo. */
+export async function getRouteQuote(input: { originLatitude: number; originLongitude: number; destinationLatitude: number; destinationLongitude: number }) {
+  const query = new URLSearchParams({ originLatitude: String(input.originLatitude), originLongitude: String(input.originLongitude), destinationLatitude: String(input.destinationLatitude), destinationLongitude: String(input.destinationLongitude) });
+  return request<RouteQuote>('/routes/quote?' + query.toString());
+}
