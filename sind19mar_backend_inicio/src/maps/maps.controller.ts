@@ -11,27 +11,44 @@ const DEFAULTS = {
   tileUrlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
 
-function numberFromEnv(name: string, fallback: number): number {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) && process.env[name]?.trim() !== '' ? value : fallback;
+function numberFromEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= min && value <= max ? value : fallback;
+}
+
+function textFromEnv(name: string, fallback: string): string {
+  const value = process.env[name]?.trim();
+  return value || fallback;
+}
+
+function tileTemplateFromEnv(): string {
+  const value = process.env.MAP_TILE_URL_TEMPLATE?.trim();
+  // Sólo se publican plantillas HTTPS con placeholders estándar de teselas.
+  if (!value || !value.startsWith('https://') ||
+      !value.includes('{z}') || !value.includes('{x}') || !value.includes('{y}')) {
+    return DEFAULTS.tileUrlTemplate;
+  }
+  return value;
 }
 
 @Controller('maps')
 export class MapsController {
-  // Configuración pública para que pasajero, conductor y panel usen la misma región y proveedor.
+  // Configuración pública compartida por pasajero, conductor y panel administrativo.
   @Get('config')
   getConfig() {
     return {
-      city: process.env.MAP_CITY?.trim() || DEFAULTS.city,
-      country: process.env.MAP_COUNTRY?.trim() || DEFAULTS.country,
+      city: textFromEnv('MAP_CITY', DEFAULTS.city),
+      country: textFromEnv('MAP_COUNTRY', DEFAULTS.country),
       center: {
-        latitude: numberFromEnv('MAP_CENTER_LATITUDE', DEFAULTS.latitude),
-        longitude: numberFromEnv('MAP_CENTER_LONGITUDE', DEFAULTS.longitude),
+        latitude: numberFromEnv('MAP_CENTER_LATITUDE', DEFAULTS.latitude, -90, 90),
+        longitude: numberFromEnv('MAP_CENTER_LONGITUDE', DEFAULTS.longitude, -180, 180),
       },
-      defaultZoom: numberFromEnv('MAP_DEFAULT_ZOOM', DEFAULTS.zoom),
-      coverageRadiusKm: numberFromEnv('MAP_COVERAGE_RADIUS_KM', DEFAULTS.coverageRadiusKm),
-      provider: process.env.MAP_PROVIDER?.trim() || DEFAULTS.provider,
-      tileUrlTemplate: process.env.MAP_TILE_URL_TEMPLATE?.trim() || DEFAULTS.tileUrlTemplate,
+      defaultZoom: numberFromEnv('MAP_DEFAULT_ZOOM', DEFAULTS.zoom, 1, 20),
+      coverageRadiusKm: numberFromEnv('MAP_COVERAGE_RADIUS_KM', DEFAULTS.coverageRadiusKm, 1, 200),
+      provider: textFromEnv('MAP_PROVIDER', DEFAULTS.provider),
+      tileUrlTemplate: tileTemplateFromEnv(),
       locationMode: 'gps_or_manual',
       attributionRequired: true,
     };
