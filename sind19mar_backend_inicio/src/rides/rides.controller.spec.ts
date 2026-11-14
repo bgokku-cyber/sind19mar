@@ -27,7 +27,7 @@ describe('RidesController', () => {
   it('uses the authenticated passenger id and validates ride input', async () => {
     const { controller, ridesService } = makeController();
     await expect(controller.create({
-      originAddress: 'Centro', originLatitude: -16.5, originLongitude: -68.15, destinationAddress: 'Sopocachi', destinationLatitude: -16.52, destinationLongitude: -68.12, paymentMethod: PaymentMethod.CASH,
+      originAddress: 'Centro', originLatitude: -16.5, originLongitude: -68.15, destinationAddress: 'Sopocachi', destinationLatitude: -16.52, destinationLongitude: -68.12, paymentMethod: PaymentMethod.CASH, routeQuoteToken: 'signed-quote-token',
     } as any, { user: { role: UserRole.PASSENGER, passenger: { id: 'passenger-auth' } } }))
       .resolves.toEqual({ id: 'ride-1' });
     expect(ridesService.create).toHaveBeenCalledWith(expect.objectContaining({ passengerId: 'passenger-auth' }));
