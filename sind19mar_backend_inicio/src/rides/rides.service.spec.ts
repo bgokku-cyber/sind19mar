@@ -164,4 +164,44 @@ describe('RidesService', () => {
       .rejects.toBeInstanceOf(ConflictException);
     expect(tx.ride.updateMany).not.toHaveBeenCalled();
   });
+
+  it('returns driver GPS only to the passenger of a fresh active assigned ride', async () => {
+    const recordedAt = new Date();
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'active-ride', passengerId: 'passenger-1', status: RideStatus.IN_PROGRESS,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt } },
+      },
+      {
+        id: 'completed-ride', passengerId: 'passenger-1', status: RideStatus.COMPLETED,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt } },
+      },
+    ]);
+    const prisma = { ride: { findMany } } as unknown as PrismaService;
+    const service = new RidesService(prisma);
+
+    const result = await service.list({ passengerId: 'passenger-1' }) as any[];
+    expect(result[0].driver.location).toEqual({
+      latitude: '-16.5', longitude: '-68.15', recordedAt,
+    });
+    expect(result[1].driver.location).toBeNull();
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { passengerId: 'passenger-1' },
+    }));
+  });
+
+  it('hides stale driver GPS from passenger ride history', async () => {
+    const staleAt = new Date(Date.now() - 120_000);
+    const prisma = {
+      ride: { findMany: jest.fn().mockResolvedValue([{
+        id: 'ride-1', passengerId: 'passenger-1', status: RideStatus.ACCEPTED,
+        driver: { location: { latitude: '-16.5', longitude: '-68.15', recordedAt: staleAt } },
+      }]) },
+    } as unknown as PrismaService;
+    const service = new RidesService(prisma);
+
+    const result = await service.list({ passengerId: 'passenger-1' }) as any[];
+    expect(result[0].driver.location).toBeNull();
+  });
+
 });
