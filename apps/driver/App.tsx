@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import MapView, { Marker, UrlTile } from 'react-native-maps';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
-import { acceptRide, addVehicle, advanceRide, cancelRide, DriverProfile, DriverRide, getMapConfig, MapConfig, getProfile, getRides, login, logout, register, restoreSession, setAvailability } from './src/api';
+import { acceptRide, addVehicle, advanceRide, cancelRide, DriverProfile, DriverRide, getMapConfig, MapConfig, getProfile, getRides, login, logout, register, restoreSession, setAvailability, updateMyLocation } from './src/api';
 
 const C = { dark: '#073B2B', green: '#16A34A', bright: '#28C76F', pale: '#EAF7EF', white: '#FFFFFF', ink: '#14231B', muted: '#718078', line: '#DCE8E0', bg: '#F5F8F6', amber: '#9A6700' };
 type Mode = 'login' | 'register';
@@ -17,6 +17,7 @@ export default function App() {
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [driverCoordinates, setDriverCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
   const [loadingRides, setLoadingRides] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -46,13 +47,46 @@ export default function App() {
     return () => clearInterval(interval);
   }, [signedIn]);
 
+  // Comparte GPS sólo tras consentimiento explícito y mientras el conductor esté conectado.
+  useEffect(() => {
+    if (!signedIn || !locationSharingEnabled || !profile ||
+        !['AVAILABLE', 'ON_TRIP'].includes(profile.availability)) return;
+    let active = true;
+    let subscription: Location.LocationSubscription | null = null;
+    void Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 25 },
+      position => {
+        if (!active) return;
+        const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        setDriverCoordinates(coordinates);
+        void updateMyLocation(coordinates).catch(() => {
+          // La siguiente lectura GPS reintentará el envío sin interrumpir al conductor.
+        });
+      },
+    ).then(next => {
+      if (active) subscription = next;
+      else next.remove();
+    }).catch(() => {
+      if (active) setLocationSharingEnabled(false);
+    });
+    return () => { active = false; subscription?.remove(); };
+  }, [signedIn, locationSharingEnabled, profile?.availability]);
+
   async function refreshDriverLocation() {
     setLocationBusy(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) throw new Error('Activa el permiso de ubicación para mostrar tu posición en el mapa.');
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setDriverCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setDriverCoordinates(coordinates);
+      if (profile && ['AVAILABLE', 'ON_TRIP'].includes(profile.availability)) {
+        await updateMyLocation(coordinates);
+        setLocationSharingEnabled(true);
+        Alert.alert('Ubicación compartida', 'Tu posición se actualizará mientras uses la aplicación y estés conectado. Sólo se mostrará al pasajero de tu viaje activo.');
+      } else {
+        Alert.alert('Ubicación en el dispositivo', 'Tu posición se muestra en este mapa, pero no se comparte porque estás desconectado.');
+      }
     } catch (error) {
       Alert.alert('No pudimos obtener tu ubicación', error instanceof Error ? error.message : 'Comprueba que el GPS esté activado.');
     } finally { setLocationBusy(false); }
@@ -73,7 +107,7 @@ export default function App() {
   async function changeAvailability() {
     if (!profile || profile.availability === 'ON_TRIP') return;
     setBusy(true);
-    try { await setAvailability(profile.availability === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE'); await refresh(); }
+    try { const nextAvailability = profile.availability === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE'; await setAvailability(nextAvailability); if (nextAvailability === 'OFFLINE') setLocationSharingEnabled(false); await refresh(); }
     catch (e) { Alert.alert('No se pudo cambiar', e instanceof Error ? e.message : 'Verifica tu aprobación y vehículo.'); }
     finally { setBusy(false); }
   }
@@ -94,7 +128,7 @@ export default function App() {
     ]);
   }
 
-  async function signOut() { await logout(); setProfile(null); setSignedIn(false); setPassword(''); }
+  async function signOut() { setLocationSharingEnabled(false); await logout(); setProfile(null); setSignedIn(false); setPassword(''); }
 
   if (checking) return <SafeAreaView style={[s.safe, s.center]}><StatusBar barStyle="light-content" backgroundColor={C.dark}/><ActivityIndicator color={C.bright}/><Text style={s.loading}>Preparando la aplicación...</Text></SafeAreaView>;
 
@@ -111,7 +145,7 @@ export default function App() {
     </MapView>
     <Text style={s.mapAttribution}>© OpenStreetMap contributors</Text>
   </View>
-  <Text style={s.muted}>Tu posición se muestra únicamente en este dispositivo; el envío de ubicación en tiempo real al servidor aún no está habilitado.</Text>
+  <Text style={s.muted}>{locationSharingEnabled ? 'Compartiendo tu GPS mientras estés conectado; sólo el pasajero de tu viaje activo podrá verlo.' : 'Pulsa «Mi ubicación» para autorizar el GPS y compartirlo mientras estés conectado.'}</Text>
 </View><View style={s.statusCard}><Text style={s.sectionTitle}>Tu estado</Text><View style={s.statusLine}><View style={[s.statusDot, { backgroundColor: available ? C.bright : C.muted }]}/><Text style={s.statusText}>{profile?.availability === 'ON_TRIP' ? 'En un viaje' : available ? 'Disponible para viajes' : 'Desconectado'}</Text></View><Text style={s.muted}>{approved ? 'Cuenta verificada' : 'Cuenta pendiente de aprobación'}</Text><Pressable style={[s.primary, (!approved || profile?.availability === 'ON_TRIP' || busy) && s.disabled]} onPress={changeAvailability} disabled={!approved || profile?.availability === 'ON_TRIP' || busy}><Text style={s.primaryText}>{available ? 'Desconectarme' : 'Conectarme'}</Text></Pressable>{!approved && <Text style={s.notice}>La administración debe verificar tu cuenta y aprobar al menos un vehículo para habilitarte.</Text>}</View><View style={s.card}><Text style={s.sectionTitle}>Mis vehículos</Text>{profile?.vehicles.length ? profile.vehicles.map(v => <View key={v.id} style={s.vehicle}><Text style={s.vehicleName}>{v.make} {v.model} · {v.year}</Text><Text style={s.muted}>{v.color} · {v.plateNumber}</Text><Text style={s.vehicleState}>{v.isActive ? 'Aprobado' : 'Pendiente de aprobación'}</Text></View>) : <Text style={s.muted}>Todavía no registraste un vehículo.</Text>}<Text style={s.formTitle}>Registrar vehículo</Text><Field label="Marca" value={make} onChangeText={setMake} placeholder="Toyota"/><Field label="Modelo" value={model} onChangeText={setModel} placeholder="Corolla"/><Field label="Color" value={color} onChangeText={setColor} placeholder="Blanco"/><Field label="Placa" value={plate} onChangeText={setPlate} placeholder="ABC123"/><Field label="Año" value={year} onChangeText={setYear} placeholder="2022"/><Pressable style={[s.secondary, busy && s.disabled]} onPress={saveVehicle} disabled={busy}><Text style={s.secondaryText}>Enviar vehículo para revisión</Text></Pressable></View><View style={s.card}><View style={s.ridesHeader}><Text style={s.sectionTitle}>Viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || busy}><Text style={s.refreshText}>{loadingRides ? 'Actualizando…' : 'Actualizar'}</Text></Pressable></View><Text style={s.muted}>Las solicitudes nuevas aparecerán aquí cuando estés conectado. Actualiza para consultar las solicitudes disponibles.</Text>{rides.length === 0 ? <Text style={s.emptyRides}>No tienes viajes asignados ni solicitudes visibles.</Text> : rides.map(ride => { const active = ['ACCEPTED','DRIVER_ARRIVING','IN_PROGRESS'].includes(ride.status); const next = ride.status === 'ACCEPTED' ? 'DRIVER_ARRIVING' : ride.status === 'DRIVER_ARRIVING' ? 'IN_PROGRESS' : ride.status === 'IN_PROGRESS' ? 'COMPLETED' : null; const nextLabel = ride.status === 'ACCEPTED' ? 'Confirmar llegada al origen' : ride.status === 'DRIVER_ARRIVING' ? 'Iniciar viaje' : 'Finalizar viaje'; return <View key={ride.id} style={s.ride}><View style={s.rideTop}><Text style={s.rideStatus}>{rideStatusLabel(ride.status)}</Text>{ride.estimatedFare !== null && <Text style={s.rideFare}>Bs {Number(ride.estimatedFare).toFixed(2).replace('.', ',')}</Text>}</View><Text style={s.rideLabel}>ORIGEN</Text><Text style={s.rideAddress}>{ride.originAddress}</Text><Text style={s.rideLabel}>DESTINO</Text><Text style={s.rideAddress}>{ride.destinationAddress}</Text><Text style={s.muted}>Pago: {ride.paymentMethod === 'CASH' ? 'Efectivo' : 'Digital'}</Text>{ride.status === 'REQUESTED' && profile?.availability === 'AVAILABLE' && <Pressable style={[s.primary, busy && s.disabled]} disabled={busy} onPress={() => handleRideAction(() => acceptRide(ride.id))}><Text style={s.primaryText}>Aceptar viaje</Text></Pressable>}{active && next && <Pressable style={[s.primary, busy && s.disabled]} disabled={busy} onPress={() => handleRideAction(() => advanceRide(ride.id, next))}><Text style={s.primaryText}>{nextLabel}</Text></Pressable>}{['ACCEPTED','DRIVER_ARRIVING'].includes(ride.status) && <Pressable style={[s.secondary, busy && s.disabled]} disabled={busy} onPress={() => confirmCancelRide(ride.id)}><Text style={s.secondaryText}>Cancelar viaje</Text></Pressable>}</View>; })}</View><View style={s.info}><Text style={s.infoTitle}>Operación segura</Text><Text style={s.muted}>Solo podrás conectarte cuando tu cuenta y un vehículo estén aprobados. Actualiza la sección Viajes para consultar solicitudes y gestionar tus servicios.</Text></View><Text style={s.footer}>Sind.19-Mar · La Paz, Bolivia</Text></ScrollView></SafeAreaView>;
 }
 
