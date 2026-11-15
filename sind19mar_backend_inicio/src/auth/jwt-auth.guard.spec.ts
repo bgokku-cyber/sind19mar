@@ -35,6 +35,17 @@ describe('JwtAuthGuard', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
+  it.each([null, {}, { sub: 123 }, { sub: '' }, { sub: '   ' }])(
+    'rejects a verified token with an invalid subject (%p) before querying users',
+    async (payload) => {
+      request.headers.authorization = 'Bearer valid-token';
+      jwt.verifyAsync.mockResolvedValue(payload);
+
+      await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects tokens whose account no longer exists', async () => {
     request.headers.authorization = 'Bearer valid-token';
     jwt.verifyAsync.mockResolvedValue({ sub: 'deleted-user' });
