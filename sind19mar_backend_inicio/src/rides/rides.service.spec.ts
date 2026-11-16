@@ -1,5 +1,5 @@
-import { ConflictException } from '@nestjs/common';
-import { RideStatus } from '@prisma/client';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { PaymentMethod, PaymentStatus, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RidesService } from './rides.service';
 
@@ -231,6 +231,80 @@ describe('RidesService', () => {
 
     const result = await service.list({ passengerId: 'passenger-1' }) as any[];
     expect(result[0].driver.location).toBeNull();
+  });
+
+
+  it('confirms a completed cash payment for the assigned driver and records the settled fare', async () => {
+    const tx = {
+      ride: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'ride-cash', driverId: 'driver-1', status: RideStatus.COMPLETED,
+          paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PENDING,
+          estimatedFare: '12.50', finalFare: null,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'ride-cash', paymentStatus: PaymentStatus.PAID, finalFare: '12.50',
+        }),
+      },
+    };
+    const { service } = makeService(tx);
+
+    await expect(service.confirmCashPayment('ride-cash', 'driver-1')).resolves.toEqual({
+      id: 'ride-cash', paymentStatus: PaymentStatus.PAID, finalFare: '12.50',
+    });
+    expect(tx.ride.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'ride-cash', driverId: 'driver-1', status: RideStatus.COMPLETED,
+        paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PENDING,
+      },
+      data: { paymentStatus: PaymentStatus.PAID, finalFare: '12.50' },
+    });
+  });
+
+  it('does not settle a ride that is not assigned to the driver', async () => {
+    const tx = { ride: { findFirst: jest.fn().mockResolvedValue(null), updateMany: jest.fn() } };
+    const { service } = makeService(tx);
+    await expect(service.confirmCashPayment('ride-other', 'driver-1')).rejects.toBeInstanceOf(NotFoundException);
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['unfinished ride', { status: RideStatus.IN_PROGRESS }],
+    ['digital method', { paymentMethod: PaymentMethod.DIGITAL }],
+    ['already paid ride', { paymentStatus: PaymentStatus.PAID }],
+    ['ride without a fare', { estimatedFare: null, finalFare: null }],
+  ])('rejects cash settlement for an invalid state: %s', async (_label, changes) => {
+    const tx = {
+      ride: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'ride-cash', driverId: 'driver-1', status: RideStatus.COMPLETED,
+          paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PENDING,
+          estimatedFare: '12.50', finalFare: null, ...changes,
+        }),
+        updateMany: jest.fn(),
+      },
+    };
+    const { service } = makeService(tx);
+    await expect(service.confirmCashPayment('ride-cash', 'driver-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a duplicate or concurrent cash settlement', async () => {
+    const tx = {
+      ride: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'ride-cash', driverId: 'driver-1', status: RideStatus.COMPLETED,
+          paymentMethod: PaymentMethod.CASH, paymentStatus: PaymentStatus.PENDING,
+          estimatedFare: '12.50', finalFare: null,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findUniqueOrThrow: jest.fn(),
+      },
+    };
+    const { service } = makeService(tx);
+    await expect(service.confirmCashPayment('ride-cash', 'driver-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.ride.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
 });

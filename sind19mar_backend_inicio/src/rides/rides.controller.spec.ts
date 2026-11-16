@@ -12,6 +12,7 @@ describe('RidesController', () => {
       accept: jest.fn().mockResolvedValue({ id: 'ride-1' }),
       cancel: jest.fn().mockResolvedValue({ id: 'ride-1' }),
       advanceStatus: jest.fn().mockResolvedValue({ id: 'ride-1' }),
+      confirmCashPayment: jest.fn().mockResolvedValue({ id: 'ride-1', paymentStatus: 'PAID' }),
     } as unknown as RidesService;
     return { controller: new RidesController(ridesService), ridesService };
   };
@@ -95,4 +96,21 @@ describe('RidesController', () => {
     })).toThrow(BadRequestException);
     expect(ridesService.advanceStatus).not.toHaveBeenCalled();
   });
+
+  it('blocks passengers from confirming cash payments', () => {
+    const { controller, ridesService } = makeController();
+    expect(() => controller.confirmCashPayment('ride-1', {
+      user: { role: UserRole.PASSENGER, passenger: { id: 'passenger-1' } },
+    })).toThrow(ForbiddenException);
+    expect(ridesService.confirmCashPayment).not.toHaveBeenCalled();
+  });
+
+  it('uses the authenticated driver profile to confirm cash payment', async () => {
+    const { controller, ridesService } = makeController();
+    await expect(controller.confirmCashPayment('ride-1', {
+      user: { role: UserRole.DRIVER, driver: { id: 'driver-auth' } },
+    })).resolves.toEqual({ id: 'ride-1', paymentStatus: 'PAID' });
+    expect(ridesService.confirmCashPayment).toHaveBeenCalledWith('ride-1', 'driver-auth');
+  });
+
 });

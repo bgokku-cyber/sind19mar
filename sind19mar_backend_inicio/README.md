@@ -61,6 +61,13 @@ La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`.
 **Actualización de base de datos:** se añadió el modelo `DriverLocation` a Prisma. Este repositorio aún no tenía historial de migraciones; antes de ejecutar en una base de datos de desarrollo existente, sincroniza el esquema con `npx prisma db push` desde `sind19mar_backend_inicio` y genera el cliente con `npx prisma generate`. Para producción se debe preparar y revisar una migración versionada y respaldar la base de datos antes de aplicarla.
 
 
+### Confirmación de cobros en efectivo
+- `POST /api/rides/:id/payment/cash/confirm` requiere JWT de conductor.
+- Sólo el conductor asignado puede confirmar después de completar el viaje, cuando el método sea `CASH`, el estado siga `PENDING` y exista una tarifa registrada.
+- La operación marca el pago como `PAID` y registra la tarifa final con el importe oficial calculado por el backend. La actualización condicional evita confirmar dos veces.
+- El conductor debe confirmar únicamente después de recibir el efectivo. La API registra su declaración; no verifica físicamente el intercambio.
+- Los pagos `DIGITAL` no se pueden marcar como pagados desde esta ruta. Permanecen pendientes hasta integrar un proveedor autorizado y una confirmación verificable/webhook. No hay cobro QR, tarjeta o transferencia automática habilitado.
+
 ### Base del motor tarifario en bolivianos
 - Se añadió una función pura y probada para calcular una tarifa en BOB a partir de una distancia de ruta suministrada por un proveedor de rutas.
 - La fórmula es: máximo entre tarifa mínima y (tarifa base + kilómetros de ruta × precio por kilómetro). El resultado se redondea a dos decimales.

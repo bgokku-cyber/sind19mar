@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, Prisma, RideStatus } from '@prisma/client';
+import { PaymentMethod, PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { RoutingService } from '../routing/routing.service';
@@ -158,6 +158,44 @@ export class RidesService {
         });
       }
 
+      return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
+    });
+  }
+
+
+  async confirmCashPayment(rideId: string, driverId: string) {
+    if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
+
+    return this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findFirst({ where: { id: rideId, driverId } });
+      if (!ride) throw new NotFoundException('No se encontró un viaje asignado a ese conductor.');
+      if (ride.status !== RideStatus.COMPLETED) {
+        throw new ConflictException('Solo se puede confirmar el cobro después de completar el viaje.');
+      }
+      if (ride.paymentMethod !== PaymentMethod.CASH) {
+        throw new ConflictException('Este viaje no es de pago en efectivo. Los pagos digitales requieren confirmación del proveedor autorizado.');
+      }
+      if (ride.paymentStatus !== PaymentStatus.PENDING) {
+        throw new ConflictException('El cobro ya fue confirmado o no está pendiente.');
+      }
+      const settledFare = ride.finalFare ?? ride.estimatedFare;
+      if (settledFare === null) {
+        throw new ConflictException('El viaje no tiene una tarifa registrada; no se puede confirmar el cobro.');
+      }
+
+      const changed = await tx.ride.updateMany({
+        where: {
+          id: rideId,
+          driverId,
+          status: RideStatus.COMPLETED,
+          paymentMethod: PaymentMethod.CASH,
+          paymentStatus: PaymentStatus.PENDING,
+        },
+        data: { paymentStatus: PaymentStatus.PAID, finalFare: settledFare },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('El estado del cobro cambió mientras se procesaba la confirmación.');
+      }
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
     });
   }
