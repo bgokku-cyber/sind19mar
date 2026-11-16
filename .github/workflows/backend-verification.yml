@@ -1,0 +1,44 @@
+name: Backend verification
+
+on:
+  push:
+    branches:
+      - main
+      - work/health-endpoint-test
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify:
+    name: Validate, build and test backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sind19mar_backend_inicio
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sind19mar_test?schema=public
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Compile backend
+        run: npm run build
+
+      - name: Run automated tests
+        run: npm test -- --runInBand
