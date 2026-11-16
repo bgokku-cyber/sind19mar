@@ -85,16 +85,19 @@ model PaymentAttempt {
   providerReference String?              @unique
   idempotencyKey    String               @unique
   status            PaymentAttemptStatus @default(CREATED)
+  webhookEvents     PaymentWebhookEvent[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 }
 
 model PaymentWebhookEvent {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   provider          String
   providerEventId   String
   payloadHash       String
-  receivedAt        DateTime @default(now())
+  paymentAttemptId String?
+  paymentAttempt   PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
+  receivedAt        DateTime        @default(now())
   processedAt       DateTime?
 
   @@unique([provider, providerEventId])
@@ -118,6 +121,7 @@ No se guarda el contenido sensible de tarjetas ni el payload íntegro del provee
 | `REFUNDED` | Reembolso confirmado | Proveedor o proceso administrativo autorizado |
 
 - Cada viaje tendrá como máximo un registro consolidado `RidePayment`; los reintentos se guardan como `PaymentAttempt`.
+- Un intento fallido puede dar paso a un nuevo intento; el estado consolidado vuelve a `PENDING` al iniciar ese nuevo intento.
 - Un reembolso no se considera completado hasta recibir confirmación verificable del proveedor o registrar el movimiento autorizado correspondiente.
 - Cancelaciones antes de completar el viaje no generan un cobro por la tarifa final.
 - No se define aquí comisión, porcentaje de plataforma ni liquidación a flotas: esas reglas requieren una decisión comercial explícita y no deben deducirse del importe del viaje.
