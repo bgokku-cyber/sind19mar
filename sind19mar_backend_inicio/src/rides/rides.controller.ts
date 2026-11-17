@@ -53,4 +53,16 @@ export class RidesController {
     if (!(allowedStatuses as RideStatus[]).includes(status)) throw new BadRequestException('Estado solicitado no válido para esta operación.');
     return this.ridesService.advanceStatus(id, request.user.driver.id, status);
   }
+
+  @Post(':id/payment/cash-confirmation')
+  confirmCashPayment(@Param('id') id: string, @Req() request: any) {
+    if (request.user.role !== UserRole.DRIVER || !request.user.driver) {
+      throw new ForbiddenException('Solo un conductor puede confirmar un cobro en efectivo.');
+    }
+    return this.ridesService.confirmCashPayment(
+      id,
+      request.user.driver.id,
+      request.user.id,
+    );
+  }
 }
