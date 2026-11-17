@@ -70,7 +70,9 @@ export type PassengerRide = {
   originAddress: string;
   destinationAddress: string;
   estimatedFare: string | number | null;
+  finalFare: string | number | null;
   paymentMethod: 'CASH' | 'DIGITAL';
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
   requestedAt: string;
   driver?: { location: { latitude: string | number; longitude: string | number; recordedAt: string } | null } | null;
 };
