@@ -230,7 +230,7 @@ export class RidesService {
         return payment;
       }
 
-      if (ride.paymentStatus === PaymentStatus.PAID || payment.status !== PaymentStatus.PENDING) {
+      if (ride.paymentStatus !== PaymentStatus.PENDING || payment.status !== PaymentStatus.PENDING) {
         throw new ConflictException('El estado del pago requiere revisión administrativa.');
       }
 
