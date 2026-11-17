@@ -195,7 +195,8 @@ export class RidesService {
       if (ride.paymentMethod !== PaymentMethod.CASH) {
         throw new ConflictException('Este viaje no fue solicitado con pago en efectivo.');
       }
-      if (!ride.finalFare || ride.finalFare.lte(0)) {
+      const finalFare = ride.finalFare;
+      if (!finalFare || finalFare.lte(0)) {
         throw new ConflictException('El viaje todavía no tiene una tarifa final válida calculada por el servidor.');
       }
 
@@ -203,7 +204,7 @@ export class RidesService {
         where: { rideId },
         create: {
           rideId,
-          amount: ride.finalFare,
+          amount: finalFare,
           currency: 'BOB',
           method: PaymentMethod.CASH,
           status: PaymentStatus.PENDING,
@@ -214,7 +215,7 @@ export class RidesService {
       if (
         payment.method !== PaymentMethod.CASH ||
         payment.currency !== 'BOB' ||
-        !payment.amount.equals(ride.finalFare)
+        !payment.amount.equals(finalFare)
       ) {
         throw new ConflictException('El registro de pago no coincide con la tarifa o el método del viaje.');
       }
