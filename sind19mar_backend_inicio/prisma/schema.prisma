@@ -54,17 +54,18 @@ enum PaymentStatus {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  phone        String        @unique
-  fullName     String
-  role         UserRole
-  status       AccountStatus @default(PENDING)
-  passwordHash String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  passenger    Passenger?
-  driver       Driver?
-  managedFleet Fleet?
+  id                       String        @id @default(cuid())
+  phone                    String        @unique
+  fullName                 String
+  role                     UserRole
+  status                   AccountStatus @default(PENDING)
+  passwordHash             String?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  passenger                Passenger?
+  driver                   Driver?
+  managedFleet             Fleet?
+  cashPaymentConfirmations RidePayment[] @relation("CashPaymentConfirmations")
 }
 
 model Passenger {
@@ -88,18 +89,18 @@ model Fleet {
 }
 
 model Driver {
-  id            String             @id @default(cuid())
-  userId        String             @unique
-  user          User               @relation(fields: [userId], references: [id])
+  id            String              @id @default(cuid())
+  userId        String              @unique
+  user          User                @relation(fields: [userId], references: [id])
   fleetId       String?
-  fleet         Fleet?             @relation(fields: [fleetId], references: [id], onDelete: SetNull)
+  fleet         Fleet?              @relation(fields: [fleetId], references: [id], onDelete: SetNull)
   availability  DriverAvailability @default(OFFLINE)
-  licenseNumber String             @unique
+  licenseNumber String              @unique
   verifiedAt    DateTime?
   vehicles      Vehicle[]
-  rides         Ride[]             @relation("DriverRides")
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  rides         Ride[]              @relation("DriverRides")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([fleetId])
 }
@@ -123,6 +124,7 @@ model Ride {
   passenger           Passenger     @relation("PassengerRides", fields: [passengerId], references: [id])
   driverId            String?
   driver              Driver?       @relation("DriverRides", fields: [driverId], references: [id])
+  payment              RidePayment?
   status              RideStatus    @default(REQUESTED)
   originAddress       String
   originLatitude      Decimal       @db.Decimal(10, 7)
@@ -138,10 +140,28 @@ model Ride {
   acceptedAt          DateTime?
   startedAt           DateTime?
   completedAt         DateTime?
-  cancelledAt         DateTime?
+  cancelledAt          DateTime?
   updatedAt           DateTime      @updatedAt
 
   @@index([passengerId, requestedAt])
   @@index([driverId, status])
   @@index([status, requestedAt])
+}
+
+model RidePayment {
+  id                    String        @id @default(cuid())
+  rideId                String        @unique
+  ride                  Ride          @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  amount                Decimal       @db.Decimal(10, 2)
+  currency              String        @default("BOB")
+  method                PaymentMethod
+  status                PaymentStatus @default(PENDING)
+  paidAt                DateTime?
+  cashConfirmedAt       DateTime?
+  cashConfirmedByUserId String?
+  cashConfirmedBy       User?         @relation("CashPaymentConfirmations", fields: [cashConfirmedByUserId], references: [id], onDelete: SetNull)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([status, createdAt])
 }
