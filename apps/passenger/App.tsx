@@ -242,16 +242,17 @@ export default function App() {
             <View style={styles.paymentText}><Text style={styles.paymentTitle}>Pago en efectivo en bolivianos (Bs)</Text><Text style={styles.paymentHint}>La moneda de operación es el boliviano (BOB)</Text></View>
             <View style={styles.selectedDot}><Text style={styles.check}>✓</Text></View>
           </View>
+          <Text style={styles.notice}>Por ahora sólo está habilitado el pago en efectivo. Los pagos digitales se activarán cuando se integre una pasarela autorizada.</Text>
           <Pressable style={[styles.primaryButton, (rideActionBusy || !originCoordinates || !destination.trim()) && styles.disabled]} disabled={rideActionBusy || !originCoordinates || !destination.trim()} onPress={submitRide}>{rideActionBusy ? <ActivityIndicator color={C.white} /> : <Text style={styles.primaryButtonText} >Cotizar y solicitar viaje</Text>}</Pressable>
           <Text style={styles.notice}>La ruta y la tarifa se calculan en el servidor. La solicitud sólo se envía si existe una tarifa oficial configurada y confirmas el precio.</Text>
         </View>
         <View style={styles.historyCard}>
           <View style={styles.historyHeader}><Text style={styles.historyTitle}>Mis viajes</Text><Pressable onPress={refreshRides} disabled={loadingRides || rideActionBusy}><Text style={styles.refreshText}>{loadingRides ? 'Cargando…' : 'Actualizar'}</Text></Pressable></View>
           {rides.length === 0 ? <Text style={styles.historyEmpty}>Todavía no tienes viajes registrados.</Text> : rides.map(ride => <View key={ride.id} style={styles.rideItem}>
-            <View style={styles.rideTop}><Text style={styles.rideStatus}>{passengerRideStatus(ride.status)}</Text>{ride.estimatedFare !== null && <Text style={styles.rideFare}>Bs {Number(ride.estimatedFare).toFixed(2).replace('.', ',')}</Text>}</View>
+            <View style={styles.rideTop}><Text style={styles.rideStatus}>{passengerRideStatus(ride.status)}</Text>{(ride.finalFare ?? ride.estimatedFare) !== null && <Text style={styles.rideFare}>Bs {Number(ride.finalFare ?? ride.estimatedFare).toFixed(2).replace('.', ',')}</Text>}</View>
             <Text style={styles.rideLabel}>ORIGEN</Text><Text style={styles.rideAddress}>{ride.originAddress}</Text>
             <Text style={styles.rideLabel}>DESTINO</Text><Text style={styles.rideAddress}>{ride.destinationAddress}</Text>
-            <Text style={styles.rideMeta}>Pago: {ride.paymentMethod === 'CASH' ? 'Efectivo' : 'Digital'} · {new Date(ride.requestedAt).toLocaleString('es-BO')}</Text>
+            <Text style={styles.rideMeta}>{passengerPaymentLabel(ride)} · {new Date(ride.requestedAt).toLocaleString('es-BO')}</Text>
             {ride.status === 'REQUESTED' && <Pressable style={[styles.cancelButton, rideActionBusy && styles.disabled]} disabled={rideActionBusy} onPress={() => handleCancelRide(ride.id)}><Text style={styles.cancelText}>Cancelar solicitud</Text></Pressable>}
           </View>)}
         </View>
@@ -259,6 +260,14 @@ export default function App() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function passengerPaymentLabel(ride: PassengerRide) {
+  if (ride.paymentMethod === 'CASH') {
+    if (ride.paymentStatus === 'PAID') return 'Efectivo confirmado por el conductor';
+    return ride.status === 'COMPLETED' ? 'Efectivo pendiente de confirmación del conductor' : 'Pago en efectivo al finalizar';
+  }
+  return ride.paymentStatus === 'PAID' ? 'Pago digital confirmado' : 'Pago digital no procesado: integración pendiente';
 }
 
 function passengerRideStatus(status: PassengerRide['status']) { return ({ REQUESTED: 'Buscando conductor', ACCEPTED: 'Conductor asignado', DRIVER_ARRIVING: 'Conductor en camino', IN_PROGRESS: 'Viaje en curso', COMPLETED: 'Viaje completado', CANCELLED: 'Viaje cancelado' })[status]; }
