@@ -114,6 +114,9 @@ Marca cada punto como **APROBADO**, **FALLÓ** o **NO PROBADO**. No avances a pr
 | GPS-02 | Conductor se desconecta | Deja de compartir ubicación y no aparece como disponible. |
 | PRIV-01 | Intentar consultar viajes de otra cuenta | La API no revela viajes ni ubicaciones ajenas. |
 | CANCEL-01 | Cancelar un viaje permitido | Se registra la cancelación y se respeta el estado del viaje. |
+| CASH-01 | Completar un viaje en efectivo y confirmar tras recibirlo | El conductor asignado puede confirmar una sola vez y el pago queda `PAID`. |
+| CASH-02 | Repetir la confirmación de un cobro ya registrado | La API rechaza la segunda confirmación y conserva el primer registro. |
+| DIGITAL-01 | Revisar un viaje con método digital sin pasarela configurada | La interfaz indica que el pago no fue procesado; no aparece confirmación manual de efectivo. |
 
 ### Cómo registrar un fallo
 
