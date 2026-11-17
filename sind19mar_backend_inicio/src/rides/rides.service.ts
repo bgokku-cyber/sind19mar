@@ -66,12 +66,27 @@ export class RidesService {
   async byDriver(driverId: string, activeOnly = false) {
     const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
     if (!driver) throw new NotFoundException('No existe el conductor indicado.');
-    return this.prisma.ride.findMany({
+    const rides = await this.prisma.ride.findMany({
       where: activeOnly
         ? { driverId, status: { in: ACTIVE_STATUSES as any } }
         : { OR: [{ driverId }, { status: 'REQUESTED' }] },
       orderBy: { requestedAt: 'desc' },
       include: { passenger: { include: { user: { select: { fullName: true, phone: true } } } } },
+    });
+
+    // A driver may preview open requests, but must not see a passenger's phone
+    // number until the trip has been assigned to that driver.
+    return rides.map((ride) => {
+      if (ride.status === 'REQUESTED' && !ride.driverId) {
+        return {
+          ...ride,
+          passenger: {
+            ...ride.passenger,
+            user: { ...ride.passenger.user, phone: undefined },
+          },
+        };
+      }
+      return ride;
     });
   }
 
