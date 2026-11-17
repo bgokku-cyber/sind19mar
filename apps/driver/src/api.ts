@@ -63,7 +63,9 @@ export type DriverRide = {
   originAddress: string;
   destinationAddress: string;
   estimatedFare: string | number | null;
+  finalFare: string | number | null;
   paymentMethod: 'CASH' | 'DIGITAL';
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
   requestedAt: string;
 };
 
@@ -88,6 +90,11 @@ export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'I
 
 export async function cancelRide(rideId: string) {
   return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
+
+/** Confirma el efectivo recibido; el backend valida conductor, viaje y estado del pago. */
+export async function confirmCashPayment(rideId: string) {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/payment/cash/confirm`, { method: 'POST' });
 }
 
 export type MapConfig = {
