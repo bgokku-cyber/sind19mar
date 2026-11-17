@@ -1,153 +1,117 @@
-# Especificación de pagos — Sind.19-Mar
+# Especificación e implementación parcial de pagos — Sind.19-Mar
 
-**Estado:** propuesta técnica para revisión; todavía no implementada.  
-**Ámbito inicial:** piloto en La Paz, Bolivia.  
-**Moneda de operación:** bolivianos (BOB, mostrar como **Bs** en las aplicaciones).
+**Ámbito:** piloto de transporte en La Paz, Bolivia.  
+**Moneda:** bolivianos (BOB); las aplicaciones deben mostrar importes como **Bs**.  
+**Estado:** registro de pagos y confirmación de efectivo añadidos a esta rama; integración digital todavía pendiente. Los cambios no están integrados en `main`.
 
-## 1. Situación comprobada del backend
+## 1. Situación comprobada
 
-El esquema Prisma actual ya contiene:
+El backend ya dispone de `Ride.paymentMethod` (`CASH` o `DIGITAL`), `Ride.paymentStatus` y `Ride.finalFare`.
 
-- `Ride.paymentMethod`: `CASH` o `DIGITAL`.
-- `Ride.paymentStatus`: `PENDING`, `PAID`, `FAILED` o `REFUNDED`.
-- `Ride.finalFare`: tarifa final opcional.
+En esta rama se añadió:
 
-Todavía no existe un registro independiente de pagos, historial de intentos, confirmación de cobro en efectivo ni integración con una pasarela. La finalización de un viaje tampoco confirma por sí sola que se haya cobrado.
+- Modelo persistente `RidePayment`, uno por viaje, con importe decimal, moneda, método y estado.
+- Relación opcional al usuario que confirmó el efectivo, con fecha de confirmación.
+- Endpoint autenticado `POST /api/rides/:id/payment/cash-confirmation`.
+- Control para que solo el conductor asignado confirme el efectivo de un viaje completado.
+- Control para exigir una tarifa final positiva calculada por el servidor.
+- Actualización transaccional del pago y de `Ride.paymentStatus`.
+- Protección idempotente: repetir la confirmación no crea otro pago ni cambia el importe.
+- Pruebas unitarias añadidas para autorización, tarifa faltante, método digital e idempotencia.
+
+**Verificación pendiente:** la ejecución de CI de esta rama debe confirmar que Prisma genera el cliente, que TypeScript compila y que las pruebas pasan. El código no se ha ejecutado contra una base PostgreSQL en este entorno.
+
+**Limitación funcional actual:** el motor tarifario todavía no asigna `finalFare`. Por seguridad, el endpoint de efectivo rechazará la confirmación hasta que el servidor calcule y guarde una tarifa final válida; no inventará un importe.
 
 ## 2. Regla principal
 
 **Un viaje completado no equivale a un pago confirmado.**
 
-El importe cobrable debe salir de `Ride.finalFare`, calculado y guardado por el servidor. Nunca se debe aceptar como importe oficial un monto enviado por la aplicación del pasajero o del conductor. La moneda del piloto es BOB; la interfaz debe mostrar `Bs`, no dólares.
+El importe cobrable debe salir de `Ride.finalFare`, calculado y guardado por el servidor. Nunca se acepta como importe oficial un monto enviado por la aplicación del pasajero o del conductor.
 
-Si `finalFare` todavía es nulo, el backend debe impedir iniciar o confirmar el cobro y dejar el caso para revisión; no debe inventar una tarifa.
+Si `finalFare` es nulo, cero o negativo, el backend impide crear o confirmar el pago. La moneda almacenada por el flujo de efectivo es BOB.
 
-## 3. Flujo de efectivo
+## 3. Flujo de efectivo implementado parcialmente
 
-1. El viaje llega a `COMPLETED` y el servidor fija `finalFare`.
-2. Se crea un pago `PENDING` por el importe final y moneda BOB.
-3. El conductor asignado registra que recibió el efectivo.
-4. El backend comprueba que el viaje está completado, que el conductor autenticado es el asignado y que el pago corresponde a ese viaje.
-5. En una transacción, cambia el pago a `PAID`, registra fecha y usuario que confirmó, y actualiza `Ride.paymentStatus`.
-6. La aplicación muestra recibo con importe en Bs, método efectivo, fecha y estado.
+1. El viaje llega a `COMPLETED`.
+2. El servidor debe haber guardado una tarifa final positiva en `finalFare`.
+3. El conductor asignado llama a `POST /api/rides/:id/payment/cash-confirmation` con su sesión autenticada.
+4. El backend verifica conductor, viaje completado, método `CASH` y tarifa final.
+5. En una transacción, crea o recupera el único registro `RidePayment`, marca el pago como `PAID` y actualiza `Ride.paymentStatus`.
+6. Registra fecha y usuario que declaró haber recibido el efectivo.
 
-La operación debe ser idempotente: repetir la confirmación no debe crear un segundo cobro ni alterar el importe. La confirmación del conductor es un registro operativo, no una prueba bancaria; debe quedar auditable y permitir que pasajero o administrador reporten una discrepancia.
+La confirmación del conductor es un registro operativo, no una prueba bancaria. Debe quedar auditable y permitir que el pasajero o la administración reporten una discrepancia. La interfaz debe mostrar el recibo en Bs.
 
-## 4. Flujo digital
+La operación es idempotente: una segunda llamada devuelve el pago ya confirmado sin duplicarlo ni modificar su importe. Los estados inconsistentes requieren revisión administrativa.
+
+## 4. Flujo digital — pendiente
 
 1. El pasajero solicita iniciar el pago digital para un viaje completado.
 2. El backend crea una operación con importe y moneda tomados de la base de datos y solicita una sesión/intención al proveedor.
 3. La aplicación abre el checkout del proveedor. No recoge ni almacena números de tarjeta, CVV, PIN ni claves bancarias.
 4. El proveedor notifica el resultado a un webhook del backend.
-5. El backend verifica la firma/autenticidad del webhook, identifica la operación, comprueba importe, moneda y referencia externa, y procesa el evento una sola vez.
-6. Solo una notificación válida de éxito puede cambiar el pago a `PAID`. El retorno del navegador o una respuesta de la app nunca bastan para confirmar el cobro.
+5. El backend verifica la firma/autenticidad del webhook, identifica la operación y comprueba importe, moneda y referencia externa.
+6. Solo una notificación válida de éxito puede cambiar el pago a `PAID`. El retorno de la aplicación nunca basta para confirmar el cobro.
 
-Los eventos repetidos deben ser idempotentes mediante el identificador de evento del proveedor. Los eventos inválidos o con importes/monedas diferentes deben rechazarse y quedar registrados para revisión, sin marcar el pago como pagado.
+Faltan el proveedor, el modelo de intentos, el endpoint de webhook, la verificación criptográfica, la conciliación y las pruebas de eventos duplicados o falsificados. No se deben simular pagos exitosos.
 
-## 5. Modelo de datos propuesto
+## 5. Modelo de datos
 
-Se recomienda separar el estado consolidado del pago de cada intento con proveedor. Así se puede reintentar un pago digital sin perder el historial.
+### Implementado en esta rama
 
-El siguiente esquema es una **propuesta**, no debe copiarse a producción hasta implementar las relaciones, restricciones, migración y pruebas:
+Se añadió `RidePayment`, relacionado uno a uno con `Ride`, con:
 
-```prisma
-enum PaymentAttemptStatus {
-  CREATED
-  PENDING
-  SUCCEEDED
-  FAILED
-  CANCELLED
-}
+- `rideId` único para impedir más de un registro consolidado por viaje.
+- `amount Decimal(10,2)` y `currency` con valor predeterminado `BOB`.
+- `method` y `status` reutilizando los enums existentes.
+- `paidAt`, `cashConfirmedAt` y `cashConfirmedByUserId`.
+- Relación de auditoría con `User`.
 
-model RidePayment {
-  id                    String        @id @default(cuid())
-  rideId                String        @unique
-  ride                  Ride          @relation(fields: [rideId], references: [id])
-  amount                Decimal       @db.Decimal(10, 2)
-  currency              String        @default("BOB")
-  method                PaymentMethod
-  status                PaymentStatus @default(PENDING)
-  paidAt                DateTime?
-  refundedAt            DateTime?
-  cashConfirmedAt       DateTime?
-  cashConfirmedByUserId String?
-  cashConfirmedBy       User?         @relation("CashPaymentConfirmations", fields: [cashConfirmedByUserId], references: [id])
-  attempts              PaymentAttempt[]
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-}
+El estado de pago también se refleja en `Ride.paymentStatus` para mantener compatibilidad con las pantallas y respuestas existentes.
 
-model PaymentAttempt {
-  id                String               @id @default(cuid())
-  paymentId         String
-  payment           RidePayment          @relation(fields: [paymentId], references: [id])
-  provider          String
-  providerReference String?              @unique
-  idempotencyKey    String               @unique
-  status            PaymentAttemptStatus @default(CREATED)
-  webhookEvents     PaymentWebhookEvent[]
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-}
+### Pendiente para pagos digitales
 
-model PaymentWebhookEvent {
-  id                String          @id @default(cuid())
-  provider          String
-  providerEventId   String
-  payloadHash       String
-  paymentAttemptId String?
-  paymentAttempt   PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id])
-  receivedAt        DateTime        @default(now())
-  processedAt       DateTime?
-
-  @@unique([provider, providerEventId])
-}
-```
-
-Relaciones inversas que habría que añadir al esquema existente:
-
-- En `Ride`: `payment RidePayment?`.
-- En `User`: `cashPaymentConfirmations RidePayment[] @relation("CashPaymentConfirmations")`.
-
-No se guarda el contenido sensible de tarjetas ni el payload íntegro del proveedor. El hash y el identificador del evento sirven para trazabilidad; los detalles adicionales deben limitarse a datos no sensibles.
+Cuando se seleccione un proveedor se añadirá un historial `PaymentAttempt` para reintentos y un registro `PaymentWebhookEvent` con unicidad por proveedor e identificador de evento. Se conservarán únicamente referencias y hashes no sensibles; no se guardarán datos de tarjetas ni payloads completos innecesarios.
 
 ## 6. Estados y reglas
 
-| Pago consolidado | Significado | Quién/qué lo puede producir |
-|---|---|---|
-| `PENDING` | Cobro aún no confirmado | Creación del pago |
-| `PAID` | Cobro confirmado | Conductor asignado para efectivo; webhook verificado para digital |
-| `FAILED` | Intento fallido sin cobro | Resultado verificado del proveedor |
-| `REFUNDED` | Reembolso confirmado | Proveedor o proceso administrativo autorizado |
+| Estado | Significado |
+|---|---|
+| `PENDING` | Pago aún no confirmado |
+| `PAID` | Efectivo declarado por el conductor asignado o pago digital confirmado por webhook verificado |
+| `FAILED` | Intento digital fallido verificado |
+| `REFUNDED` | Reembolso confirmado mediante un proceso autorizado |
 
-- Cada viaje tendrá como máximo un registro consolidado `RidePayment`; los reintentos se guardan como `PaymentAttempt`.
-- Un intento fallido puede dar paso a un nuevo intento; el estado consolidado vuelve a `PENDING` al iniciar ese nuevo intento.
-- Un reembolso no se considera completado hasta recibir confirmación verificable del proveedor o registrar el movimiento autorizado correspondiente.
-- Cancelaciones antes de completar el viaje no generan un cobro por la tarifa final.
-- No se define aquí comisión, porcentaje de plataforma ni liquidación a flotas: esas reglas requieren una decisión comercial explícita y no deben deducirse del importe del viaje.
+- Cada viaje tendrá como máximo un registro consolidado `RidePayment`; los reintentos digitales se guardarán por separado.
+- Un pago con estado inconsistente o importe distinto de `finalFare` requiere revisión.
+- Un reembolso no se considera completado hasta recibir confirmación verificable o registrar el movimiento autorizado correspondiente.
+- No se define comisión, porcentaje de plataforma ni liquidación a flotas: esas reglas requieren una decisión comercial explícita.
 
-## 7. API propuesta
+## 7. API
 
-- `POST /api/rides/:id/payment/cash-confirmation` — conductor asignado confirma efectivo recibido.
-- `POST /api/rides/:id/payment/checkout` — pasajero solicita una sesión digital para su viaje.
-- `POST /api/payments/webhooks/:provider` — recepción de eventos firmados del proveedor.
-- `GET /api/rides/:id/payment` — pasajero y conductor consultan el estado del pago de su viaje.
-- Operación administrativa protegida para iniciar y auditar reembolsos.
+| Ruta | Estado |
+|---|---|
+| `POST /api/rides/:id/payment/cash-confirmation` | Implementada en esta rama; pendiente de CI y del motor tarifario |
+| `POST /api/rides/:id/payment/checkout` | Pendiente |
+| `POST /api/payments/webhooks/:provider` | Pendiente |
+| `GET /api/rides/:id/payment` | Pendiente |
+| Operación administrativa de reembolso y auditoría | Pendiente |
 
-Todas las rutas deben aplicar autenticación y autorización por rol; las rutas de consulta deben verificar que el usuario pertenece al viaje. El webhook no usa sesión de usuario: autentica al proveedor mediante firma y controles propios.
+Todas las rutas de usuario deben aplicar autenticación y autorización por rol, además de verificar la pertenencia al viaje. El webhook no usa sesión de usuario: autentica al proveedor mediante firma y controles propios.
 
 ## 8. Criterios de aceptación antes del piloto
 
 - [ ] Efectivo: solo el conductor asignado puede confirmar el cobro de un viaje completado.
 - [ ] Efectivo: una segunda confirmación no duplica ni modifica el pago.
+- [ ] El servidor calcula y guarda `finalFare` antes de habilitar el cobro.
 - [ ] Digital: un retorno falso desde la app no marca el pago como `PAID`.
 - [ ] Digital: webhook con firma inválida, importe incorrecto o moneda distinta no confirma el pago.
 - [ ] Digital: webhook duplicado se procesa una sola vez.
 - [ ] Un pasajero no puede consultar pagos de viajes ajenos.
 - [ ] Todos los importes se calculan en el servidor y se almacenan con precisión decimal en BOB.
-- [ ] La app pasajero, la app conductor y el panel administrativo usan estados y etiquetas coherentes; la identidad visual permanece verde oscuro, verde brillante y blanco.
+- [ ] Pasajero, conductor y administración muestran estados coherentes y la identidad visual verde oscuro, verde brillante y blanco.
 - [ ] Se prueban reembolsos, conciliación y auditoría antes de habilitar dinero real.
 
 ## 9. Dependencia para integrar pagos reales
 
-La especificación es independiente del proveedor. La integración real queda pendiente de seleccionar una pasarela disponible para comercios en Bolivia y revisar sus requisitos de alta, moneda, comisiones, webhooks y reembolsos. Hasta entonces, el modo digital debe permanecer como no disponible o de prueba; nunca simular un pago exitoso.
+La integración digital depende de seleccionar una pasarela disponible para comercios en Bolivia y revisar sus requisitos de alta, moneda, comisiones, webhooks y reembolsos. Hasta entonces, el modo digital debe permanecer como no disponible o de prueba; nunca debe simularse un pago exitoso.
