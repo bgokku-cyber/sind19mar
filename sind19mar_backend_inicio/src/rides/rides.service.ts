@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
@@ -10,6 +10,12 @@ export class RidesService {
   constructor(private readonly prisma: PrismaService, private readonly routing: RoutingService) {}
 
   async create(input: CreateRideDto) {
+    // No aceptar viajes digitales hasta integrar un proveedor y su confirmación verificable.
+    // Evita crear viajes que quedarían indefinidamente en estado de pago PENDING.
+    if (input.paymentMethod === PaymentMethod.DIGITAL) {
+      throw new ServiceUnavailableException('Los pagos digitales todavía no están habilitados. Selecciona efectivo hasta integrar un proveedor autorizado.');
+    }
+
     // La cobertura se valida en servidor; no se confía en límites enviados por la app.
     assertRideWithinMapCoverage(input.originLatitude, input.originLongitude, input.destinationLatitude, input.destinationLongitude);
     const fare = this.routing.verifyQuoteToken(
