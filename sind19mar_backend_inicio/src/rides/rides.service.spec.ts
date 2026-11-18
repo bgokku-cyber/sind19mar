@@ -306,4 +306,59 @@ describe('RidesService critical transitions and cash payments', () => {
     expect(tx.ridePayment.updateMany).not.toHaveBeenCalled();
     expect(tx.ride.updateMany).not.toHaveBeenCalled();
   });
+
+  it('rejects a persisted cash record whose amount differs from the server final fare', async () => {
+    const finalFare = new Prisma.Decimal('24.50');
+    tx.ride.findUnique.mockResolvedValue({
+      id: 'ride-1',
+      driverId: 'driver-1',
+      status: RideStatus.COMPLETED,
+      paymentMethod: PaymentMethod.CASH,
+      paymentStatus: PaymentStatus.PENDING,
+      finalFare,
+    });
+    tx.ridePayment.upsert.mockResolvedValue({
+      id: 'payment-1',
+      rideId: 'ride-1',
+      amount: new Prisma.Decimal('24.51'),
+      currency: 'BOB',
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+    });
+
+    await expect(
+      service.confirmCashPayment('ride-1', 'driver-1', 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.ridePayment.updateMany).not.toHaveBeenCalled();
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a persisted digital record when the ride requires cash', async () => {
+    const finalFare = new Prisma.Decimal('24.50');
+    tx.ride.findUnique.mockResolvedValue({
+      id: 'ride-1',
+      driverId: 'driver-1',
+      status: RideStatus.COMPLETED,
+      paymentMethod: PaymentMethod.CASH,
+      paymentStatus: PaymentStatus.PENDING,
+      finalFare,
+    });
+    tx.ridePayment.upsert.mockResolvedValue({
+      id: 'payment-1',
+      rideId: 'ride-1',
+      amount: finalFare,
+      currency: 'BOB',
+      method: PaymentMethod.DIGITAL,
+      status: PaymentStatus.PENDING,
+    });
+
+    await expect(
+      service.confirmCashPayment('ride-1', 'driver-1', 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.ridePayment.updateMany).not.toHaveBeenCalled();
+    expect(tx.ride.updateMany).not.toHaveBeenCalled();
+  });
+
 });
