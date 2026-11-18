@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, Prisma, RideStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentMethod, PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 
@@ -165,6 +165,109 @@ export class RidesService {
       }
 
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
+    });
+  }
+
+  async confirmCashPayment(rideId: string, driverId: string, userId: string) {
+    if (!driverId?.trim() || !userId?.trim()) {
+      throw new BadRequestException('La sesión del conductor no contiene sus identificadores.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findUnique({
+        where: { id: rideId },
+        select: {
+          id: true,
+          driverId: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          finalFare: true,
+        },
+      });
+      if (!ride) throw new NotFoundException('No se encontró el viaje.');
+      if (ride.driverId !== driverId) {
+        throw new ForbiddenException('Solo el conductor asignado puede confirmar el efectivo.');
+      }
+      if (ride.status !== RideStatus.COMPLETED) {
+        throw new ConflictException('El efectivo solo puede confirmarse después de completar el viaje.');
+      }
+      if (ride.paymentMethod !== PaymentMethod.CASH) {
+        throw new ConflictException('Este viaje no fue solicitado con pago en efectivo.');
+      }
+      const finalFare = ride.finalFare;
+      if (!finalFare || finalFare.lte(0)) {
+        throw new ConflictException('El viaje todavía no tiene una tarifa final válida calculada por el servidor.');
+      }
+
+      const payment = await tx.ridePayment.upsert({
+        where: { rideId },
+        create: {
+          rideId,
+          amount: finalFare,
+          currency: 'BOB',
+          method: PaymentMethod.CASH,
+          status: PaymentStatus.PENDING,
+        },
+        update: {},
+      });
+
+      if (
+        payment.method !== PaymentMethod.CASH ||
+        payment.currency !== 'BOB' ||
+        !payment.amount.equals(finalFare)
+      ) {
+        throw new ConflictException('El registro de pago no coincide con la tarifa o el método del viaje.');
+      }
+
+      if (payment.status === PaymentStatus.PAID) {
+        if (ride.paymentStatus !== PaymentStatus.PAID) {
+          const synced = await tx.ride.updateMany({
+            where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+            data: { paymentStatus: PaymentStatus.PAID },
+          });
+          if (synced.count !== 1) throw new ConflictException('No se pudo sincronizar el estado del viaje.');
+        }
+        return payment;
+      }
+
+      if (ride.paymentStatus !== PaymentStatus.PENDING || payment.status !== PaymentStatus.PENDING) {
+        throw new ConflictException('El estado del pago requiere revisión administrativa.');
+      }
+
+      const confirmedAt = new Date();
+      const changed = await tx.ridePayment.updateMany({
+        where: { id: payment.id, status: PaymentStatus.PENDING, method: PaymentMethod.CASH },
+        data: {
+          status: PaymentStatus.PAID,
+          paidAt: confirmedAt,
+          cashConfirmedAt: confirmedAt,
+          cashConfirmedByUserId: userId,
+        },
+      });
+
+      if (changed.count !== 1) {
+        const current = await tx.ridePayment.findUniqueOrThrow({ where: { rideId } });
+        if (current.status !== PaymentStatus.PAID) {
+          throw new ConflictException('El pago cambió mientras se procesaba la confirmación.');
+        }
+        const synced = await tx.ride.updateMany({
+          where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+          data: { paymentStatus: PaymentStatus.PAID },
+        });
+        if (synced.count !== 1) throw new ConflictException('No se pudo sincronizar el estado del viaje.');
+        return current;
+      }
+
+      const rideUpdated = await tx.ride.updateMany({
+        where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+        data: { paymentStatus: PaymentStatus.PAID },
+      });
+      if (rideUpdated.count !== 1) {
+        throw new ConflictException('No se pudo actualizar el estado de pago del viaje.');
+      }
+
+      return tx.ridePayment.findUniqueOrThrow({ where: { rideId } });
     });
   }
 }
