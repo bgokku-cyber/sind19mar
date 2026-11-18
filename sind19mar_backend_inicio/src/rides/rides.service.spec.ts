@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RidesService } from './rides.service';
@@ -30,6 +30,31 @@ describe('RidesService', () => {
       data: expect.objectContaining({ estimatedFare: expect.anything() }),
     }));
     expect(String(prisma.ride.create.mock.calls[0][0].data.estimatedFare)).toBe('11');
+  });
+
+  it('rejects digital ride creation until a payment provider is integrated', async () => {
+    const prisma = {
+      passenger: { findUnique: jest.fn() },
+      ride: { create: jest.fn() },
+    } as any;
+    const routing = { verifyQuoteToken: jest.fn() } as any;
+    const service = new RidesService(prisma, routing);
+
+    await expect(service.create({
+      passengerId: 'passenger-1',
+      originAddress: 'Centro',
+      originLatitude: -16.5,
+      originLongitude: -68.15,
+      destinationAddress: 'Sopocachi',
+      destinationLatitude: -16.51,
+      destinationLongitude: -68.14,
+      routeQuoteToken: 'signed-server-token',
+      paymentMethod: PaymentMethod.DIGITAL,
+    })).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(routing.verifyQuoteToken).not.toHaveBeenCalled();
+    expect(prisma.passenger.findUnique).not.toHaveBeenCalled();
+    expect(prisma.ride.create).not.toHaveBeenCalled();
   });
 
   const makeService = (tx: any) => {
