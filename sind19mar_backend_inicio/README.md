@@ -66,19 +66,14 @@ La respuesta indica `locationMode: gps_or_manual` y `attributionRequired: true`.
 - Sólo el conductor asignado puede confirmar después de completar el viaje, cuando el método sea `CASH`, el estado siga `PENDING` y exista una tarifa registrada.
 - La operación marca el pago como `PAID` y registra la tarifa final con el importe oficial calculado por el backend. La actualización condicional evita confirmar dos veces.
 - El conductor debe confirmar únicamente después de recibir el efectivo. La API registra su declaración; no verifica físicamente el intercambio.
-- Los pagos `DIGITAL` no se pueden marcar como pagados desde esta ruta. Permanecen pendientes hasta integrar un proveedor autorizado y una confirmación verificable/webhook. No hay cobro QR, tarjeta o transferencia automática habilitado.
+- Los pagos `DIGITAL` no se pueden marcar como pagados desde esta ruta. Además, la creación de viajes rechaza temporalmente `paymentMethod: DIGITAL` con HTTP 503 hasta integrar un proveedor autorizado y su confirmación verificable. Esto evita aceptar viajes que quedarían indefinidamente pendientes de cobro.
+- La app de pasajero mantiene habilitado únicamente efectivo. No hay cobro QR, tarjeta ni transferencia automática habilitado; no se deben presentar como disponibles.
 
-### Base del motor tarifario en bolivianos
-- Se añadió una función pura y probada para calcular una tarifa en BOB a partir de una distancia de ruta suministrada por un proveedor de rutas.
+### Motor tarifario y cotización vial en bolivianos
+- El backend calcula la tarifa en BOB a partir de la distancia vial obtenida del proveedor de rutas; no acepta el importe estimado enviado por la aplicación.
 - La fórmula es: máximo entre tarifa mínima y (tarifa base + kilómetros de ruta × precio por kilómetro). El resultado se redondea a dos decimales.
-- Variables previstas: `FARE_BASE_BOB`, `FARE_PER_KM_BOB` y `FARE_MINIMUM_BOB`. No se inventan valores predeterminados: si falta alguna variable o no es válida, la configuración tarifaria se considera no disponible.
-- **Todavía no se usa para crear viajes ni se expone como cotización pública.** Primero falta integrar y validar una distancia vial real (no distancia en línea recta), definir la política tarifaria del sindicato y conectar el cotizador al flujo de solicitud. El cliente nunca debe determinar la tarifa oficial.
-
-
-### Rutas viales y cotización preliminar
-- `GET /api/routes/quote?originLatitude=...&originLongitude=...&destinationLatitude=...&destinationLongitude=...` requiere JWT de pasajero.
-- El backend consulta un proveedor compatible con OSRM, devuelve distancia vial en km, duración estimada en minutos y geometría simplificada para dibujar la ruta.
-- La cotización tarifada devuelve un token firmado con `JWT_SECRET`, válido por cinco minutos y vinculado exactamente a las coordenadas. Al crear el viaje, el backend verifica la firma, vencimiento y ubicaciones, y guarda el importe firmado; el cliente no puede cambiar el precio.
-- El proveedor se configura con `ROUTING_PROVIDER` y `ROUTING_BASE_URL`. El servidor público `router.project-osrm.org` es únicamente para desarrollo/pruebas de bajo volumen; producción requiere un servicio contratado o instancia propia, límites de uso y monitoreo.
-- Si las variables de tarifa BOB no están configuradas, la respuesta devuelve `fare: null` y explica que la tarifa oficial no está disponible. No se inventa un precio.
-- Esta cotización todavía no se persiste en el viaje ni habilita la solicitud del pasajero. Antes se debe aprobar la tabla tarifaria del sindicato y verificar proveedor, cobertura, tiempos y condiciones de operación.
+- Variables: `FARE_BASE_BOB`, `FARE_PER_KM_BOB` y `FARE_MINIMUM_BOB`. No hay valores predeterminados: si falta alguna variable o no es válida, la tarifa no está disponible.
+- `GET /api/routes/quote?originLatitude=...&originLongitude=...&destinationLatitude=...&destinationLongitude=...` requiere JWT de pasajero y devuelve distancia vial, duración, geometría y, si la tarifa está configurada, un token firmado con `JWT_SECRET`, válido cinco minutos y vinculado a las coordenadas.
+- Al crear un viaje, el backend verifica el token y guarda el importe firmado como `estimatedFare`. La tarifa enviada por el cliente se ignora.
+- El proveedor se configura con `ROUTING_PROVIDER` y `ROUTING_BASE_URL`. El servidor público `router.project-osrm.org` es sólo para desarrollo y bajo volumen; producción requiere un proveedor contratado o instancia propia, límites de uso y monitoreo.
+- La fórmula está implementada, pero el piloto no debe habilitar tarifas hasta que el sindicato apruebe los valores de BOB y se verifiquen las condiciones del proveedor de rutas.
