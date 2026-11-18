@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -64,8 +65,11 @@ export class RidesService {
   }
 
   async byDriver(driverId: string, activeOnly = false) {
-    const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
+    const driver = await this.prisma.driver.findUnique({ where: { id: driverId }, include: { user: true } });
     if (!driver) throw new NotFoundException('No existe el conductor indicado.');
+    if (driver.user.status !== 'ACTIVE' || !driver.verifiedAt) {
+      throw new ForbiddenException('Solo los conductores activos y verificados pueden consultar solicitudes de viaje.');
+    }
     const rides = await this.prisma.ride.findMany({
       where: activeOnly
         ? { driverId, status: { in: ACTIVE_STATUSES as any } }
