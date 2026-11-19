@@ -54,7 +54,7 @@ export class RidesController {
     return this.ridesService.advanceStatus(id, request.user.driver.id, status);
   }
 
-  @Post(':id/payment/cash-confirmation')
+  @Post(':id/payment/cash/confirm')
   confirmCashPayment(@Param('id') id: string, @Req() request: any) {
     if (request.user.role !== UserRole.DRIVER || !request.user.driver) {
       throw new ForbiddenException('Solo un conductor puede confirmar un cobro en efectivo.');
