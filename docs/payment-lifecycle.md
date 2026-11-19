@@ -19,7 +19,7 @@ En esta rama se añadió:
 - Protección idempotente: repetir la confirmación no crea otro pago ni cambia el importe.
 - Pruebas unitarias añadidas para autorización, tarifa faltante, método digital e idempotencia.
 
-**Verificación pendiente:** la ejecución de CI de esta rama debe confirmar que Prisma genera el cliente, que TypeScript compila y que las pruebas pasan. El código no se ha ejecutado contra una base PostgreSQL en este entorno.
+**Verificación automatizada:** CI aprobó la generación de Prisma, compilación y 122 pruebas del backend (17 suites). No se ha ejecutado contra una base PostgreSQL real ni se ha probado en dispositivos físicos.
 
 **Limitación funcional actual:** al completar el viaje, el backend fija `finalFare` con la tarifa calculada y guardada en `estimatedFare`. La confirmación de efectivo sólo se permite si ese importe del servidor es positivo y está presente; no se acepta un monto enviado por el teléfono.
 
@@ -35,7 +35,7 @@ Si `finalFare` es nulo, cero o negativo, el backend impide crear o confirmar el 
 
 1. El viaje llega a `COMPLETED`.
 2. El servidor fija una tarifa final positiva en `finalFare` al completar el viaje.
-3. El conductor asignado llama a `POST /api/rides/:id/payment/cash-confirmation` con su sesión autenticada.
+3. El conductor asignado llama a `POST /api/rides/:id/payment/cash/confirm` con su sesión autenticada.
 4. El backend verifica conductor, viaje completado, método `CASH` y tarifa final.
 5. En una transacción, crea o recupera el único registro `RidePayment`, marca el pago como `PAID` y actualiza `Ride.paymentStatus`.
 6. Registra fecha y usuario que declaró haber recibido el efectivo.
@@ -91,7 +91,7 @@ Cuando se seleccione un proveedor se añadirá un historial `PaymentAttempt` par
 
 | Ruta | Estado |
 |---|---|
-| `POST /api/rides/:id/payment/cash-confirmation` | Implementada en esta rama; pendiente de CI y del motor tarifario |
+| `POST /api/rides/:id/payment/cash/confirm` | Implementada; CI aprobada. Requiere tarifa final positiva guardada por el servidor |
 | `POST /api/rides/:id/payment/checkout` | Pendiente |
 | `POST /api/payments/webhooks/:provider` | Pendiente |
 | `GET /api/rides/:id/payment` | Pendiente |
