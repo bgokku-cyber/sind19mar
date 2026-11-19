@@ -92,9 +92,21 @@ export async function cancelRide(rideId: string) {
   return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
 }
 
+export type DriverPayment = {
+  id: string;
+  rideId: string;
+  amount: string | number;
+  currency: 'BOB';
+  method: 'CASH' | 'DIGITAL';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  paidAt: string | null;
+  cashConfirmedAt: string | null;
+  cashConfirmedByUserId: string | null;
+};
+
 /** Confirma el efectivo recibido; el backend valida conductor, viaje y estado del pago. */
 export async function confirmCashPayment(rideId: string) {
-  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/payment/cash/confirm`, { method: 'POST' });
+  return request<DriverPayment>(`/rides/${encodeURIComponent(rideId)}/payment/cash/confirm`, { method: 'POST' });
 }
 
 export type MapConfig = {
