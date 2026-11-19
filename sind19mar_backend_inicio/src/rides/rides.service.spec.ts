@@ -198,6 +198,7 @@ describe('RidesService', () => {
       id: 'ride-1',
       status: RideStatus.COMPLETED,
     });
+    expect(tx.ride.updateMany.mock.calls[0][0].data.finalFare.toString()).toBe('11');
     expect(tx.driver.updateMany).toHaveBeenCalledWith({
       where: { id: 'driver-1', availability: 'ON_TRIP' },
       data: { availability: 'AVAILABLE' },
