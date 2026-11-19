@@ -12,7 +12,7 @@ En esta rama se añadió:
 
 - Modelo persistente `RidePayment`, uno por viaje, con importe decimal, moneda, método y estado.
 - Relación opcional al usuario que confirmó el efectivo, con fecha de confirmación.
-- Endpoint autenticado `POST /api/rides/:id/payment/cash-confirmation`.
+- Endpoint autenticado `POST /api/rides/:id/payment/cash/confirm`.
 - Control para que solo el conductor asignado confirme el efectivo de un viaje completado.
 - Control para exigir una tarifa final positiva calculada por el servidor.
 - Actualización transaccional del pago y de `Ride.paymentStatus`.
@@ -21,20 +21,20 @@ En esta rama se añadió:
 
 **Verificación pendiente:** la ejecución de CI de esta rama debe confirmar que Prisma genera el cliente, que TypeScript compila y que las pruebas pasan. El código no se ha ejecutado contra una base PostgreSQL en este entorno.
 
-**Limitación funcional actual:** el motor tarifario todavía no asigna `finalFare`. Por seguridad, el endpoint de efectivo rechazará la confirmación hasta que el servidor calcule y guarde una tarifa final válida; no inventará un importe.
+**Limitación funcional actual:** al completar el viaje, el backend fija `finalFare` con la tarifa calculada y guardada en `estimatedFare`. La confirmación de efectivo sólo se permite si ese importe del servidor es positivo y está presente; no se acepta un monto enviado por el teléfono.
 
 ## 2. Regla principal
 
 **Un viaje completado no equivale a un pago confirmado.**
 
-El importe cobrable debe salir de `Ride.finalFare`, calculado y guardado por el servidor. Nunca se acepta como importe oficial un monto enviado por la aplicación del pasajero o del conductor.
+El importe cobrable debe salir de `Ride.finalFare`, que el backend fija al completar el viaje a partir de la tarifa cotizada y guardada por el servidor. Nunca se acepta como importe oficial un monto enviado por la aplicación del pasajero o del conductor.
 
 Si `finalFare` es nulo, cero o negativo, el backend impide crear o confirmar el pago. La moneda almacenada por el flujo de efectivo es BOB.
 
 ## 3. Flujo de efectivo implementado parcialmente
 
 1. El viaje llega a `COMPLETED`.
-2. El servidor debe haber guardado una tarifa final positiva en `finalFare`.
+2. El servidor fija una tarifa final positiva en `finalFare` al completar el viaje.
 3. El conductor asignado llama a `POST /api/rides/:id/payment/cash-confirmation` con su sesión autenticada.
 4. El backend verifica conductor, viaje completado, método `CASH` y tarifa final.
 5. En una transacción, crea o recupera el único registro `RidePayment`, marca el pago como `PAID` y actualiza `Ride.paymentStatus`.
