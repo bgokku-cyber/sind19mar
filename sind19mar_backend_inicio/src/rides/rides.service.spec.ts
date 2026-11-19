@@ -186,7 +186,7 @@ describe('RidesService', () => {
   it('releases the driver after the assigned ride is completed', async () => {
     const tx = {
       ride: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'ride-1', driverId: 'driver-1', status: RideStatus.IN_PROGRESS }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'ride-1', driverId: 'driver-1', status: RideStatus.IN_PROGRESS, estimatedFare: new Prisma.Decimal('11.00'), finalFare: null }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'ride-1', status: RideStatus.COMPLETED }),
       },
