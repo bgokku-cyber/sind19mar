@@ -46,19 +46,23 @@ export class RidesController {
     });
   }
 
-  @Post(':id/payment/cash/confirm')
-  confirmCashPayment(@Param('id') id: string, @Req() request: any) {
-    if (request.user.role !== UserRole.DRIVER || !request.user.driver) {
-      throw new ForbiddenException('Solo el conductor asignado puede confirmar un cobro en efectivo.');
-    }
-    return this.ridesService.confirmCashPayment(id, request.user.driver.id);
-  }
-
   @Post(':id/status')
   advanceStatus(@Param('id') id: string, @Body('status') status: RideStatus, @Req() request: any) {
     if (request.user.role !== UserRole.DRIVER || !request.user.driver) throw new ForbiddenException('Solo el conductor asignado puede actualizar el viaje.');
     const allowedStatuses = [RideStatus.DRIVER_ARRIVING, RideStatus.IN_PROGRESS, RideStatus.COMPLETED];
     if (!(allowedStatuses as RideStatus[]).includes(status)) throw new BadRequestException('Estado solicitado no válido para esta operación.');
     return this.ridesService.advanceStatus(id, request.user.driver.id, status);
+  }
+
+  @Post(':id/payment/cash-confirmation')
+  confirmCashPayment(@Param('id') id: string, @Req() request: any) {
+    if (request.user.role !== UserRole.DRIVER || !request.user.driver) {
+      throw new ForbiddenException('Solo un conductor puede confirmar un cobro en efectivo.');
+    }
+    return this.ridesService.confirmCashPayment(
+      id,
+      request.user.driver.id,
+      request.user.id,
+    );
   }
 }
