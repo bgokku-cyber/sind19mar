@@ -9,11 +9,30 @@ export class JwtAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const header = request.headers.authorization;
-    if (typeof header !== 'string' || !header.startsWith('Bearer ')) throw new UnauthorizedException('Se requiere una sesión válida.');
+    if (typeof header !== 'string' || !header.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Se requiere una sesión válida.');
+    }
+
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string }>(header.slice(7));
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, role: true, status: true, passenger: { select: { id: true } }, driver: { select: { id: true, verifiedAt: true } } } });
-      if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('La cuenta no está activa.');
+      const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(header.slice(7));
+      if (typeof payload?.sub !== 'string' || payload.sub.trim().length === 0) {
+        throw new UnauthorizedException('El token no contiene un identificador de cuenta válido.');
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          passenger: { select: { id: true } },
+          driver: { select: { id: true, verifiedAt: true } },
+        },
+      });
+      if (!user || user.status !== 'ACTIVE') {
+        throw new UnauthorizedException('La cuenta no está activa.');
+      }
+
       request.user = user;
       return true;
     } catch {

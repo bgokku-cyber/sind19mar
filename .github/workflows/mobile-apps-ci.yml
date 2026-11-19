@@ -1,0 +1,32 @@
+name: Mobile Apps CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - ".github/workflows/mobile-apps-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - ".github/workflows/mobile-apps-ci.yml"
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run typecheck

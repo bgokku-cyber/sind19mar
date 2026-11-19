@@ -8,6 +8,14 @@
     "android": {
       "package": "bo.sind19mar.conductor",
       "versionCode": 1
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sind.19-Mar necesita tu ubicación mientras usas la aplicación para gestionar tus viajes."
+        }
+      ]
+    ]
   }
 }
