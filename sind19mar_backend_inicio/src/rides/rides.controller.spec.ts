@@ -108,9 +108,9 @@ describe('RidesController', () => {
   it('uses the authenticated driver profile to confirm cash payment', async () => {
     const { controller, ridesService } = makeController();
     await expect(controller.confirmCashPayment('ride-1', {
-      user: { role: UserRole.DRIVER, driver: { id: 'driver-auth' } },
+      user: { id: 'user-auth', role: UserRole.DRIVER, driver: { id: 'driver-auth' } },
     })).resolves.toEqual({ id: 'ride-1', paymentStatus: 'PAID' });
-    expect(ridesService.confirmCashPayment).toHaveBeenCalledWith('ride-1', 'driver-auth');
+    expect(ridesService.confirmCashPayment).toHaveBeenCalledWith('ride-1', 'driver-auth', 'user-auth');
   });
 
 });
