@@ -188,7 +188,14 @@ export class RidesService {
       const timestamp = new Date();
       const data: Prisma.RideUpdateManyMutationInput = { status: nextStatus };
       if (nextStatus === RideStatus.IN_PROGRESS) data.startedAt = timestamp;
-      if (nextStatus === RideStatus.COMPLETED) data.completedAt = timestamp;
+      if (nextStatus === RideStatus.COMPLETED) {
+        const finalFare = ride.finalFare ?? ride.estimatedFare;
+        if (!finalFare || finalFare.lte(0)) {
+          throw new ConflictException('No se puede finalizar un viaje sin una tarifa válida calculada por el servidor.');
+        }
+        data.completedAt = timestamp;
+        data.finalFare = finalFare;
+      }
 
       const changed = await tx.ride.updateMany({
         where: { id: rideId, driverId, status: ride.status },
