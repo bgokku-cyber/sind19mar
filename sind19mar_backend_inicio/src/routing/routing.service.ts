@@ -4,7 +4,7 @@ import { assertRideWithinMapCoverage } from '../maps/map-coverage';
 import { calculateFareQuote, getFareTariffFromEnv } from '../rides/fare-estimator';
 
 interface Coordinate { latitude: number; longitude: number; }
-interface SignedFareQuote { origin: Coordinate; destination: Coordinate; fare: { currency: 'BOB'; distanceKm: number; amount: number; pricingVersion: 'env-v1' }; expiresAt: number; }
+interface SignedFareQuote { origin: Coordinate; destination: Coordinate; fare: { currency: 'BOB'; distanceKm: number; amount: number; pricingVersion: 'env-v2' }; expiresAt: number; }
 interface OsrmRouteResponse {
   code?: string;
   routes?: Array<{ distance: number; duration: number; geometry?: { coordinates?: [number, number][] } }>;
