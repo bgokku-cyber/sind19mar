@@ -32,8 +32,11 @@ La API queda en `http://localhost:3000/api`. Comprueba `GET /api/health`, `GET /
 ## 3. Configurar rutas y tarifas
 - Para pruebas técnicas de bajo volumen, el ejemplo usa `ROUTING_BASE_URL=https://router.project-osrm.org`. No es un servicio con garantía de producción; producción requiere proveedor contratado o instancia propia.
 - La cotización usa distancia vial del proveedor.
-- El sindicato debe aprobar y configurar `FARE_BASE_BOB`, `FARE_PER_KM_BOB` y `FARE_MINIMUM_BOB` en el `.env` del backend.
-- No se publican importes ficticios. Sin las tres variables válidas, la API puede cotizar ruta/distancia/duración, pero **no acepta crear viajes**.
+- El `.env.example` ya incluye los valores de desarrollo definidos por el propietario para el piloto: tarifa base diurna **Bs 3,50**, precio por kilómetro **Bs 3,50**, tarifa mínima **Bs 3,50** y tarifa base nocturna **Bs 5,00**.
+- El horario nocturno se interpreta en la zona `America/La_Paz`: desde las **22:00** inclusive hasta las **05:00** exclusive del día siguiente.
+- La fórmula aplicada es `max(tarifa mínima, tarifa base del horario + distancia vial en km × precio por km)`. Ejemplo para 2 km: **Bs 10,50** de día y **Bs 12,00** de noche.
+- Estos valores quedan configurados para desarrollo y prueba; el sindicato debe ratificarlos formalmente antes de anunciar o iniciar el piloto con pasajeros.
+- Si se eliminan o invalidan las tres variables diurnas, la API no inventa una tarifa ni permite crear viajes sin una cotización firmada.
 
 ## 4. Crear y aprobar cuentas de prueba
 1. Registra un pasajero desde la app de pasajero.
