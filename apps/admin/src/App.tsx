@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 
-const API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+const API = ((import.meta.env.VITE_API_URL as string | undefined) || 'https://sind19mar.onrender.com/api').replace(/\/$/, '');
 type Vehicle = { id: string; make: string; model: string; color: string; plateNumber: string; year: number; isActive: boolean };
 type PendingDriver = { id: string; verifiedAt: string | null; user: { id: string; fullName: string; phone: string; status: string; createdAt: string }; vehicles: Vehicle[] };
 type PendingFleet = { id: string; name: string; status: string; manager: { id: string; fullName: string; phone: string; createdAt: string } };
