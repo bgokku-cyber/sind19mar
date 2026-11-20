@@ -50,6 +50,8 @@ jobs:
         run: npx prisma generate
       - name: Validar esquema contra PostgreSQL real
         run: npx prisma db push --skip-generate
+      - name: Revisar estilo y posibles errores
+        run: npm run lint
       - name: Compilar backend
         run: npm run build
       - name: Ejecutar pruebas
