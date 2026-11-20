@@ -60,7 +60,7 @@ describe('RoutingService', () => {
       { latitude: -16.5, longitude: -68.15 },
       { latitude: -16.51, longitude: -68.14 },
     );
-    expect(result.fare).toEqual({ currency: 'BOB', distanceKm: 3, amount: 11, pricingVersion: 'env-v1' });
+    expect(result.fare).toEqual({ currency: 'BOB', distanceKm: 3, amount: 11, pricingVersion: 'env-v2' });
     expect(typeof result.quoteToken).toBe('string');
     expect(service.verifyQuoteToken(result.quoteToken!, { latitude: -16.5, longitude: -68.15 }, { latitude: -16.51, longitude: -68.14 })).toEqual(result.fare);
   });
