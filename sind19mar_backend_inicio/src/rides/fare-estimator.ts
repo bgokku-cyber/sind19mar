@@ -73,7 +73,7 @@ export function calculateFareQuote(
 
 function parseTimeMinutes(value: string | undefined, fallback: number): number | null {
   if (value === undefined || value.trim() === '') return fallback;
-  const match = /^(\\d{2}):(\\d{2})$/.exec(value.trim());
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
