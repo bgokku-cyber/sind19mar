@@ -29,7 +29,7 @@ describe('fare estimator', () => {
   });
 
   it('applies the configured minimum fare', () => {
-    expect(calculateFareQuote(0.1, tariff, new Date('2026-11-20T14:00:00Z')).amount).toBe(3.5);
+    expect(calculateFareQuote(0.1, { ...tariff, baseFare: 0, pricePerKm: 1 }, new Date('2026-11-20T14:00:00Z')).amount).toBe(3.5);
   });
 
   it('rejects invalid route distances, dates, and tariff values', () => {
