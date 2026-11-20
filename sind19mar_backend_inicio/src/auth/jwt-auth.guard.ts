@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -88,7 +89,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     request.user = {
-      sub: claims.sub,
+      sub: claims.sub.trim(),
       role: claims.role as UserRole,
       iat: claims.iat,
       exp: claims.exp,
@@ -99,7 +100,7 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (allowedRoles?.length && !allowedRoles.includes(request.user.role)) {
-      throw new UnauthorizedException('El rol del token no permite esta operación.');
+      throw new ForbiddenException('El rol no tiene permiso para esta operación.');
     }
 
     return true;
