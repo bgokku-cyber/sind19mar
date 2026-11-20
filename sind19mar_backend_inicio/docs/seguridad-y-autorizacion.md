@@ -1,23 +1,22 @@
 # Seguridad, autenticación y autorización — Sind.19-Mar
 
-**Fecha:** 19 de noviembre de 2026  
-**Estado:** especificación aprobada para orientar la implementación; todavía no es código desplegado.
+**Actualización:** 20 de noviembre de 2026  
+**Estado:** guard JWT y protección inicial de rutas de viajes incorporados en la rama de desarrollo. La autenticación completa y el piloto siguen pendientes.
 
 ## 1. Objetivo
 
 Impedir que una persona pueda actuar como otro pasajero, conductor o administrador cambiando identificadores enviados en el cuerpo o la URL. La identidad del actor debe proceder exclusivamente de una sesión autenticada y validada por el servidor.
 
-## 2. Mecanismo propuesto
+## 2. Mecanismo objetivo
 
 - Autenticación mediante teléfono verificado y código de un solo uso (OTP).
-- Contraseñas, si se habilitan como segundo factor, almacenadas únicamente con Argon2id; nunca en texto plano.
 - Access token JWT firmado por el servidor, con expiración corta (15 minutos como valor inicial).
 - Refresh token aleatorio, rotatorio y almacenado en la base solo como hash; revocar la familia de sesiones al detectar reutilización.
 - Claims mínimos: `sub` (User.id), `role`, `sid` (sesión) e `iat/exp`. No incluir teléfono, contraseña ni documentos.
 - Claves y secretos mediante variables de entorno o gestor de secretos; nunca en Git, imágenes ni logs.
 - Límites de intentos y frecuencia para solicitar/verificar OTP; respuestas que no revelen si un teléfono está registrado.
 
-Los valores de expiración y límites deberán confirmarse en pruebas de seguridad antes del piloto. La verificación telefónica requiere elegir y configurar un proveedor compatible con Bolivia; no se presupone ninguno.
+La verificación telefónica requiere elegir y configurar un proveedor compatible con Bolivia; no se presupone ninguno.
 
 ## 3. Reglas de autorización por rol
 
@@ -30,19 +29,17 @@ Los valores de expiración y límites deberán confirmarse en pruebas de segurid
 
 Ser miembro de una flota no concede acceso a otras flotas. Los conductores independientes conservan el mismo flujo de viaje, sin requerir una flota.
 
-## 4. Cambios obligatorios en la API de viajes
+## 4. Contrato de la API de viajes
 
-Las rutas actuales reciben `passengerId` o `driverId` del cliente. Esos identificadores no deben ser fuente de autoridad.
+| Ruta protegida | Rol | Identidad del actor |
+|---|---|---|
+| `POST /api/rides` | PASSENGER | `req.user.sub`; rechaza `passengerId` en el cuerpo. |
+| `GET /api/rides/passenger/me` | PASSENGER | Perfil de pasajero asociado al usuario autenticado. |
+| `GET /api/rides/driver/me` | DRIVER | Perfil de conductor asociado al usuario autenticado. |
+| `PATCH /api/rides/:rideId/accept` | DRIVER | Conductor derivado de `req.user.sub`; no recibe `driverId`. |
+| `PATCH /api/rides/:rideId/status` | DRIVER | Conductor derivado de `req.user.sub`; rechaza `driverId` en el cuerpo. |
 
-| Ruta actual | Contrato seguro objetivo |
-|---|---|
-| `POST /api/rides` | Tomar el pasajero desde `req.user.sub`; rechazar `passengerId` enviado por el cliente. |
-| `GET /api/rides/passenger/:passengerId` | Sustituir por `GET /api/rides/passenger/me`; filtrar por el pasajero asociado al usuario autenticado. |
-| `GET /api/rides/driver/:driverId` | Sustituir por `GET /api/rides/driver/me`; derivar el conductor desde el usuario autenticado. |
-| `PATCH /api/rides/:rideId/accept` | No aceptar `driverId` del cuerpo; usar el conductor asociado a `req.user.sub`. |
-| `PATCH /api/rides/:rideId/status` | No aceptar `driverId` del cuerpo; exigir que el viaje esté asignado al conductor autenticado. |
-
-La API debe devolver 401 si falta o no es válido el token, 403 si el rol no tiene permiso y 404 cuando corresponda ocultar la existencia de un recurso ajeno. Validar DTOs y rechazar propiedades inesperadas.
+Los identificadores de actor enviados por el cliente no son fuente de autoridad. El guard responde 401 ante token ausente o inválido y 403 ante un rol no autorizado.
 
 ## 5. Reglas específicas para viajes y pagos
 
@@ -64,27 +61,38 @@ Agregar un modelo de sesión/refresh token con: identificador, userId, hash del 
 - Pasajero A no puede consultar, cancelar ni alterar el viaje de pasajero B.
 - Conductor A no puede aceptar o cambiar el estado de un viaje asignado a conductor B.
 - Alterar `passengerId`/`driverId` en cuerpo o URL no cambia la identidad del actor.
-- Conductor suspendido o no verificado no puede consultar ni aceptar solicitudes.
+- Conductor suspendido o no verificado no puede consultar o aceptar solicitudes.
 - Dos conductores aceptando simultáneamente producen exactamente una asignación.
 - Un miembro de una flota no puede leer otra flota.
 - Un cliente no puede confirmar por sí mismo un pago DIGITAL.
 - Repetir un webhook no duplica el cobro ni el evento contable.
 - Refresh token rotado no puede reutilizarse; cerrar sesión revoca la sesión.
 
-## 8. Secuencia de implementación
+## 8. Estado real de implementación — 20 de noviembre de 2026
 
-1. Incorporar módulos de autenticación, OTP y sesiones; añadir dependencias mantenidas y configurar secretos.
-2. Añadir migración de sesiones y pruebas de persistencia con PostgreSQL.
-3. Implementar guards JWT y guardas de rol; exponer identidad tipada en el contexto de petición.
-4. Refactorizar el controlador de viajes para eliminar IDs de actor suministrados por el cliente.
-5. Añadir pruebas unitarias, integración y pruebas negativas de autorización.
-6. Revisar límites de frecuencia, CORS, TLS, logs sin datos sensibles y auditoría antes de staging.
+**Incorporado en la rama de desarrollo:**
+- Guard JWT HS256 con verificación de firma mediante comparación de tiempo constante.
+- Rechazo de token ausente, firma inválida, algoritmo distinto de HS256, rol desconocido, token vencido o duración mayor a 15 minutos.
+- Restricción de roles por ruta: PASSENGER para crear/consultar sus viajes y DRIVER para consultar/aceptar/actualizar viajes.
+- Las rutas de viajes derivan el usuario desde el token; ya no reciben IDs de pasajero/conductor para determinar al actor.
+- El servicio resuelve el perfil de pasajero/conductor mediante `User.id` y conserva la comprobación de conductor activo/verificado.
+- Pruebas unitarias nuevas para el guard JWT.
 
-## 9. Estado actual verificado
+**Pendiente y no debe darse por implementado:**
+- Emisión de tokens: no existe todavía endpoint de login ni proveedor OTP.
+- Persistencia y revocación de sesiones/refresh tokens; el guard actual valida firma y expiración, pero no consulta una sesión revocable.
+- Pruebas de integración HTTP con PostgreSQL y validación de la compilación tras estos cambios.
+- Cancelación del pasajero, gestión de flotas, auditoría y pagos digitales con proveedor/webhook.
+- Rotación de claves, rate limiting, CORS restringido, TLS y revisión de seguridad antes de producción.
 
-- El repositorio contiene NestJS 10, Prisma 6 y roles PASSENGER, DRIVER, FLEET_MANAGER y ADMIN.
-- El controlador de viajes existente todavía recibe identificadores de pasajero/conductor en parámetros o cuerpos.
-- El paquete actual no incluye todavía `@nestjs/jwt`, Passport ni un proveedor OTP.
-- Por lo tanto, esta especificación no afirma que la autenticación o la autorización por usuario ya estén implementadas.
+## 9. Configuración local
 
-**Criterio de salida:** no exponer la API a pasajeros o conductores reales hasta completar los pasos 1–5 y superar las pruebas de seguridad anteriores.
+Añadir `AUTH_JWT_SECRET` al archivo `.env` local. Generar un secreto aleatorio de al menos 32 bytes con:
+
+```bash
+openssl rand -base64 48
+```
+
+No copiar el secreto real a GitHub ni compartirlo en chats. El archivo `.env.example` contiene solo un marcador de posición.
+
+**Criterio de salida:** no exponer la API a pasajeros o conductores reales hasta implementar emisión OTP/tokens y sesiones revocables, completar pruebas de integración y superar las pruebas de seguridad anteriores.
