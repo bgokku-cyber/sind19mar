@@ -1,48 +1,68 @@
 import { calculateFareQuote, getFareTariffFromEnv } from './fare-estimator';
 
 describe('fare estimator', () => {
-  const tariff = { currency: 'BOB' as const, baseFare: 5, pricePerKm: 2, minimumFare: 8 };
+  const tariff = {
+    currency: 'BOB' as const,
+    baseFare: 3.5,
+    pricePerKm: 3.5,
+    minimumFare: 3.5,
+    nightBaseFare: 5,
+    nightStartMinutes: 22 * 60,
+    nightEndMinutes: 5 * 60,
+  };
 
-  it('calculates and rounds a quote from a route distance in bolivianos', () => {
-    expect(calculateFareQuote(3.456, tariff)).toEqual({
-      currency: 'BOB',
-      distanceKm: 3.46,
-      amount: 11.91,
-      pricingVersion: 'env-v1',
-    });
+  it('calculates the daytime fare in La Paz', () => {
+    expect(calculateFareQuote(2, tariff, new Date('2026-11-20T14:00:00Z')).amount).toBe(10.5);
+  });
+
+  it('uses the night base from 22:00 La Paz time', () => {
+    // 22:00 in La Paz (UTC-4) is 02:00 UTC on the following day.
+    expect(calculateFareQuote(2, tariff, new Date('2026-11-21T02:00:00Z')).amount).toBe(12);
+  });
+
+  it('keeps the night fare active after midnight until 04:59', () => {
+    expect(calculateFareQuote(2, tariff, new Date('2026-11-21T08:59:00Z')).amount).toBe(12);
+  });
+
+  it('switches back to daytime at exactly 05:00 La Paz time', () => {
+    expect(calculateFareQuote(2, tariff, new Date('2026-11-21T09:00:00Z')).amount).toBe(10.5);
   });
 
   it('applies the configured minimum fare', () => {
-    expect(calculateFareQuote(0.5, tariff).amount).toBe(8);
+    expect(calculateFareQuote(0.1, tariff, new Date('2026-11-20T14:00:00Z')).amount).toBe(3.5);
   });
 
-  it('rejects missing, zero, negative, or non-finite route distances', () => {
+  it('rejects invalid route distances, dates, and tariff values', () => {
     for (const distance of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => calculateFareQuote(distance, tariff)).toThrow();
     }
-  });
-
-  it('rejects invalid tariff values', () => {
+    expect(() => calculateFareQuote(2, tariff, new Date('invalid'))).toThrow();
     expect(() => calculateFareQuote(2, { ...tariff, pricePerKm: -1 })).toThrow();
   });
 
-  it('does not invent tariff values when environment configuration is missing', () => {
+  it('does not invent daytime prices when environment configuration is missing', () => {
     expect(getFareTariffFromEnv({})).toBeNull();
   });
 
-  it('loads an explicitly configured tariff', () => {
+  it('loads daytime and approved night tariff settings', () => {
     expect(getFareTariffFromEnv({
-      FARE_BASE_BOB: '5',
-      FARE_PER_KM_BOB: '2.5',
-      FARE_MINIMUM_BOB: '8',
-    })).toEqual({ currency: 'BOB', baseFare: 5, pricePerKm: 2.5, minimumFare: 8 });
+      FARE_BASE_BOB: '3.5',
+      FARE_PER_KM_BOB: '3.5',
+      FARE_MINIMUM_BOB: '3.5',
+      FARE_NIGHT_BASE_BOB: '5',
+      FARE_NIGHT_START: '22:00',
+      FARE_NIGHT_END: '05:00',
+    })).toEqual({
+      ...tariff,
+    });
   });
 
-  it('rejects malformed environment tariff values', () => {
+  it('rejects malformed environment tariff values and night hours', () => {
     expect(getFareTariffFromEnv({
-      FARE_BASE_BOB: 'five',
-      FARE_PER_KM_BOB: '2',
-      FARE_MINIMUM_BOB: '8',
+      FARE_BASE_BOB: '3.5',
+      FARE_PER_KM_BOB: '3.5',
+      FARE_MINIMUM_BOB: '3.5',
+      FARE_NIGHT_START: '25:00',
     })).toBeNull();
   });
 });
