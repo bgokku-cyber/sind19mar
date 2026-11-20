@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { createHmac } from 'node:crypto';
 import { JwtAuthGuard, ROLES_KEY } from './jwt-auth.guard';
@@ -64,18 +64,23 @@ describe('JwtAuthGuard', () => {
     expect(() => new JwtAuthGuard(reflector).canActivate(context)).toThrow(UnauthorizedException);
   });
 
-  it('rejects a role that is not allowed by the route', () => {
+  it('rejects a role that is not allowed by the route with 403', () => {
     const { context, reflector } = contextFor(
       `Bearer ${token({ sub: 'user-1', role: 'DRIVER', iat: now, exp: now + 600 })}`,
       ['PASSENGER'],
     );
-    expect(() => new JwtAuthGuard(reflector).canActivate(context)).toThrow(UnauthorizedException);
+    expect(() => new JwtAuthGuard(reflector).canActivate(context)).toThrow(ForbiddenException);
   });
 
   it('rejects tokens with an algorithm other than HS256', () => {
     const { context, reflector } = contextFor(
       `Bearer ${token({ sub: 'user-1', role: 'PASSENGER', iat: now, exp: now + 600 }, { alg: 'none', typ: 'JWT' })}`,
     );
+    expect(() => new JwtAuthGuard(reflector).canActivate(context)).toThrow(UnauthorizedException);
+  });
+
+  it('rejects requests without a bearer token', () => {
+    const { context, reflector } = contextFor();
     expect(() => new JwtAuthGuard(reflector).canActivate(context)).toThrow(UnauthorizedException);
   });
 });
