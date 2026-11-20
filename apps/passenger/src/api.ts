@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://sind19mar.onrender.com/api').replace(/\/$/, '');
 const TOKEN_KEY = 'sind19mar.passenger.token';
 
 export type AuthResponse = {
