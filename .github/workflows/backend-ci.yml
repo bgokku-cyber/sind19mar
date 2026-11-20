@@ -4,20 +4,23 @@ concurrency:
   group: backend-ci-${{ github.ref }}
   cancel-in-progress: true
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - "sind19mar_backend_inicio/**"
-      - ".github/workflows/backend-ci.yml"
-  pull_request:
-    paths:
-      - "sind19mar_backend_inicio/**"
-      - ".github/workflows/backend-ci.yml"
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: sind19mar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d sind19mar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: sind19mar_backend_inicio
@@ -34,6 +37,8 @@ jobs:
         run: npm install
       - name: Generar cliente Prisma
         run: npx prisma generate
+      - name: Validar esquema contra PostgreSQL real
+        run: npx prisma db push --skip-generate
       - name: Compilar backend
         run: npm run build
       - name: Ejecutar pruebas
