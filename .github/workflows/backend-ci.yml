@@ -1,5 +1,16 @@
 name: Backend CI
 
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sind19mar_backend_inicio/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "sind19mar_backend_inicio/**"
+      - ".github/workflows/backend-ci.yml"
+
 concurrency:
   group: backend-ci-${{ github.ref }}
   cancel-in-progress: true
