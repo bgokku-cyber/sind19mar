@@ -2,12 +2,26 @@
   "expo": {
     "name": "Sind.19-Mar Conductor",
     "slug": "sind19mar-conductor",
+    "owner": "elmer658",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
       "package": "bo.sind19mar.conductor",
       "versionCode": 1
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Sind.19-Mar necesita tu ubicación mientras usas la aplicación para gestionar tus viajes."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b7523d15-50a4-4977-bcbb-9facb0f26316"
+      }
     }
   }
 }

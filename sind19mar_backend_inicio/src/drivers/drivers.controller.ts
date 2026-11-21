@@ -19,6 +19,9 @@ export class DriversController {
   @Post('me/vehicles')
   addVehicle(@Req() request: any, @Body() body: any) { return this.drivers.addVehicle(this.driverId(request), body); }
 
+  @Post('me/location')
+  updateLocation(@Req() request: any, @Body() body: any) { return this.drivers.updateLocation(this.driverId(request), body); }
+
   @Patch('me/availability')
   setAvailability(@Req() request: any, @Body('availability') availability: DriverAvailability) { return this.drivers.setAvailability(this.driverId(request), availability); }
 }

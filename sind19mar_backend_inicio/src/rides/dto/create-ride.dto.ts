@@ -9,6 +9,7 @@ export interface CreateRideDto {
   destinationLatitude: number;
   destinationLongitude: number;
   estimatedFare?: number;
+  routeQuoteToken: string;
   paymentMethod: PaymentMethod;
 }
 
@@ -25,6 +26,7 @@ export function validateCreateRide(input: CreateRideDto): string | null {
   if (input.originLatitude < -90 || input.originLatitude > 90 || input.destinationLatitude < -90 || input.destinationLatitude > 90) return 'La latitud debe estar entre -90 y 90.';
   if (input.originLongitude < -180 || input.originLongitude > 180 || input.destinationLongitude < -180 || input.destinationLongitude > 180) return 'La longitud debe estar entre -180 y 180.';
   if (input.estimatedFare !== undefined && (!Number.isFinite(input.estimatedFare) || input.estimatedFare < 0)) return 'La tarifa estimada no puede ser negativa.';
+  if (typeof input.routeQuoteToken !== 'string' || !input.routeQuoteToken.trim()) return 'Vuelve a calcular la ruta antes de solicitar el viaje.';
   if (!Object.values(PaymentMethod).includes(input.paymentMethod)) return 'El método de pago no es válido.';
   return null;
 }

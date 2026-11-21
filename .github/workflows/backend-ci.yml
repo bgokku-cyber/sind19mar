@@ -1,9 +1,5 @@
 name: Backend CI
 
-concurrency:
-  group: backend-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
     branches: [main]
@@ -15,9 +11,27 @@ on:
       - "sind19mar_backend_inicio/**"
       - ".github/workflows/backend-ci.yml"
 
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: sind19mar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d sind19mar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: sind19mar_backend_inicio
@@ -34,6 +48,12 @@ jobs:
         run: npm install
       - name: Generar cliente Prisma
         run: npx prisma generate
+      - name: Aplicar migraciones versionadas en PostgreSQL limpio
+        run: npx prisma migrate deploy
+      - name: Verificar estado de migraciones
+        run: npx prisma migrate status
+      - name: Revisar estilo y posibles errores
+        run: npm run lint
       - name: Compilar backend
         run: npm run build
       - name: Ejecutar pruebas

@@ -1,13 +1,28 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentMethod, Prisma, RideStatus } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { PaymentMethod, PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
+import { RoutingService } from '../routing/routing.service';
+import { assertRideWithinMapCoverage } from '../maps/map-coverage';
 
 @Injectable()
 export class RidesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly routing: RoutingService) {}
 
   async create(input: CreateRideDto) {
+    // No aceptar viajes digitales hasta integrar un proveedor y su confirmación verificable.
+    // Evita crear viajes que quedarían indefinidamente en estado de pago PENDING.
+    if (input.paymentMethod === PaymentMethod.DIGITAL) {
+      throw new ServiceUnavailableException('Los pagos digitales todavía no están habilitados. Selecciona efectivo hasta integrar un proveedor autorizado.');
+    }
+
+    // La cobertura se valida en servidor; no se confía en límites enviados por la app.
+    assertRideWithinMapCoverage(input.originLatitude, input.originLongitude, input.destinationLatitude, input.destinationLongitude);
+    const fare = this.routing.verifyQuoteToken(
+      input.routeQuoteToken,
+      { latitude: input.originLatitude, longitude: input.originLongitude },
+      { latitude: input.destinationLatitude, longitude: input.destinationLongitude },
+    );
     const passenger = await this.prisma.passenger.findUnique({ where: { id: input.passengerId } });
     if (!passenger) throw new NotFoundException('No se encontró el perfil del pasajero.');
 
@@ -20,8 +35,9 @@ export class RidesService {
         destinationAddress: input.destinationAddress.trim(),
         destinationLatitude: new Prisma.Decimal(input.destinationLatitude),
         destinationLongitude: new Prisma.Decimal(input.destinationLongitude),
-        // La tarifa enviada por el cliente nunca se considera válida ni oficial.
-        // Se calculará en el servidor cuando se implemente el motor tarifario de La Paz.
+        // La tarifa oficial se vuelve a calcular aquí con la distancia vial del proveedor.
+        // Nunca se acepta la tarifa estimada que envíe el cliente.
+        estimatedFare: new Prisma.Decimal(fare.amount),
         paymentMethod: input.paymentMethod as PaymentMethod,
       },
     });
@@ -31,13 +47,32 @@ export class RidesService {
     if (filters.passengerId && filters.driverId) {
       throw new BadRequestException('Usa passengerId o driverId, no ambos.');
     }
-    return this.prisma.ride.findMany({
+    const rides = await this.prisma.ride.findMany({
       where: {
         ...(filters.passengerId ? { passengerId: filters.passengerId } : {}),
         ...(filters.driverId ? { driverId: filters.driverId } : {}),
       },
       orderBy: { requestedAt: 'desc' },
       take: 100,
+      ...(filters.passengerId ? {
+        include: {
+          driver: { select: { location: { select: { latitude: true, longitude: true, recordedAt: true } } } },
+        },
+      } : {}),
+    });
+
+    if (!filters.passengerId) return rides;
+    const now = Date.now();
+    const trackableStatuses: RideStatus[] = [RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING, RideStatus.IN_PROGRESS];
+    return rides.map((ride: any) => {
+      const location = ride.driver?.location;
+      const isFresh = location && now - new Date(location.recordedAt).getTime() <= 90_000;
+      return {
+        ...ride,
+        driver: ride.driver ? {
+          location: trackableStatuses.includes(ride.status) && isFresh ? location : null,
+        } : null,
+      };
     });
   }
 
@@ -108,8 +143,16 @@ export class RidesService {
         throw new BadRequestException('Rol no autorizado para cancelar viajes.');
       }
 
+      // Revalida propietario y estado en la misma escritura para cerrar carreras
+      // entre la lectura inicial y la cancelación.
+      const ownershipWhere = actor.role === 'PASSENGER'
+        ? { passengerId: actor.passengerId }
+        : actor.role === 'DRIVER'
+          ? { driverId: actor.driverId }
+          : {};
+
       const changed = await tx.ride.updateMany({
-        where: { id: rideId, status: ride.status },
+        where: { id: rideId, status: ride.status, ...ownershipWhere },
         data: { status: RideStatus.CANCELLED, cancelledAt: new Date() },
       });
       if (changed.count !== 1) throw new ConflictException('El viaje cambió mientras se procesaba la cancelación.');
@@ -124,6 +167,7 @@ export class RidesService {
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
     });
   }
+
 
   async advanceStatus(rideId: string, driverId: string, nextStatus: RideStatus) {
     if (!driverId?.trim()) throw new BadRequestException('driverId es obligatorio.');
@@ -144,7 +188,14 @@ export class RidesService {
       const timestamp = new Date();
       const data: Prisma.RideUpdateManyMutationInput = { status: nextStatus };
       if (nextStatus === RideStatus.IN_PROGRESS) data.startedAt = timestamp;
-      if (nextStatus === RideStatus.COMPLETED) data.completedAt = timestamp;
+      if (nextStatus === RideStatus.COMPLETED) {
+        const finalFare = ride.finalFare ?? ride.estimatedFare;
+        if (!finalFare || finalFare.lte(0)) {
+          throw new ConflictException('No se puede finalizar un viaje sin una tarifa válida calculada por el servidor.');
+        }
+        data.completedAt = timestamp;
+        data.finalFare = finalFare;
+      }
 
       const changed = await tx.ride.updateMany({
         where: { id: rideId, driverId, status: ride.status },
@@ -165,6 +216,109 @@ export class RidesService {
       }
 
       return tx.ride.findUniqueOrThrow({ where: { id: rideId } });
+    });
+  }
+
+  async confirmCashPayment(rideId: string, driverId: string, userId: string) {
+    if (!driverId?.trim() || !userId?.trim()) {
+      throw new BadRequestException('La sesión del conductor no contiene sus identificadores.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const ride = await tx.ride.findUnique({
+        where: { id: rideId },
+        select: {
+          id: true,
+          driverId: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          finalFare: true,
+        },
+      });
+      if (!ride) throw new NotFoundException('No se encontró el viaje.');
+      if (ride.driverId !== driverId) {
+        throw new ForbiddenException('Solo el conductor asignado puede confirmar el efectivo.');
+      }
+      if (ride.status !== RideStatus.COMPLETED) {
+        throw new ConflictException('El efectivo solo puede confirmarse después de completar el viaje.');
+      }
+      if (ride.paymentMethod !== PaymentMethod.CASH) {
+        throw new ConflictException('Este viaje no fue solicitado con pago en efectivo.');
+      }
+      const finalFare = ride.finalFare;
+      if (!finalFare || finalFare.lte(0)) {
+        throw new ConflictException('El viaje todavía no tiene una tarifa final válida calculada por el servidor.');
+      }
+
+      const payment = await tx.ridePayment.upsert({
+        where: { rideId },
+        create: {
+          rideId,
+          amount: finalFare,
+          currency: 'BOB',
+          method: PaymentMethod.CASH,
+          status: PaymentStatus.PENDING,
+        },
+        update: {},
+      });
+
+      if (
+        payment.method !== PaymentMethod.CASH ||
+        payment.currency !== 'BOB' ||
+        !payment.amount.equals(finalFare)
+      ) {
+        throw new ConflictException('El registro de pago no coincide con la tarifa o el método del viaje.');
+      }
+
+      if (payment.status === PaymentStatus.PAID) {
+        if (ride.paymentStatus !== PaymentStatus.PAID) {
+          const synced = await tx.ride.updateMany({
+            where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+            data: { paymentStatus: PaymentStatus.PAID },
+          });
+          if (synced.count !== 1) throw new ConflictException('No se pudo sincronizar el estado del viaje.');
+        }
+        return payment;
+      }
+
+      if (ride.paymentStatus !== PaymentStatus.PENDING || payment.status !== PaymentStatus.PENDING) {
+        throw new ConflictException('El estado del pago requiere revisión administrativa.');
+      }
+
+      const confirmedAt = new Date();
+      const changed = await tx.ridePayment.updateMany({
+        where: { id: payment.id, status: PaymentStatus.PENDING, method: PaymentMethod.CASH },
+        data: {
+          status: PaymentStatus.PAID,
+          paidAt: confirmedAt,
+          cashConfirmedAt: confirmedAt,
+          cashConfirmedByUserId: userId,
+        },
+      });
+
+      if (changed.count !== 1) {
+        const current = await tx.ridePayment.findUniqueOrThrow({ where: { rideId } });
+        if (current.status !== PaymentStatus.PAID) {
+          throw new ConflictException('El pago cambió mientras se procesaba la confirmación.');
+        }
+        const synced = await tx.ride.updateMany({
+          where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+          data: { paymentStatus: PaymentStatus.PAID },
+        });
+        if (synced.count !== 1) throw new ConflictException('No se pudo sincronizar el estado del viaje.');
+        return current;
+      }
+
+      const rideUpdated = await tx.ride.updateMany({
+        where: { id: rideId, driverId, status: RideStatus.COMPLETED },
+        data: { paymentStatus: PaymentStatus.PAID },
+      });
+      if (rideUpdated.count !== 1) {
+        throw new ConflictException('No se pudo actualizar el estado de pago del viaje.');
+      }
+
+      return tx.ridePayment.findUniqueOrThrow({ where: { rideId } });
     });
   }
 }

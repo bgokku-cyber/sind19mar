@@ -12,6 +12,7 @@ describe('validateCreateRide', () => {
     destinationLongitude: -68.148,
     estimatedFare: 25,
     paymentMethod: PaymentMethod.CASH,
+    routeQuoteToken: 'signed-quote-token',
   };
 
   it('accepts a valid ride request', () => {

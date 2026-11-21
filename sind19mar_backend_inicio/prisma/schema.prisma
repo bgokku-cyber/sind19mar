@@ -53,18 +53,35 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentAttemptStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentWebhookStatus {
+  RECEIVED
+  PROCESSED
+  REJECTED
+  RETRYABLE_FAILURE
+}
+
 model User {
-  id           String        @id @default(cuid())
-  phone        String        @unique
-  fullName     String
-  role         UserRole
-  status       AccountStatus @default(PENDING)
-  passwordHash String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  passenger    Passenger?
-  driver       Driver?
-  managedFleet Fleet?
+  id                       String        @id @default(cuid())
+  phone                    String        @unique
+  fullName                 String
+  role                     UserRole
+  status                   AccountStatus @default(PENDING)
+  passwordHash             String?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  passenger                Passenger?
+  driver                   Driver?
+  managedFleet             Fleet?
+  cashPaymentConfirmations RidePayment[] @relation("CashPaymentConfirmations")
 }
 
 model Passenger {
@@ -98,6 +115,7 @@ model Driver {
   verifiedAt    DateTime?
   vehicles      Vehicle[]
   rides         Ride[]             @relation("DriverRides")
+  location      DriverLocation?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -123,6 +141,7 @@ model Ride {
   passenger           Passenger     @relation("PassengerRides", fields: [passengerId], references: [id])
   driverId            String?
   driver              Driver?       @relation("DriverRides", fields: [driverId], references: [id])
+  payment             RidePayment?
   status              RideStatus    @default(REQUESTED)
   originAddress       String
   originLatitude      Decimal       @db.Decimal(10, 7)
@@ -144,4 +163,74 @@ model Ride {
   @@index([passengerId, requestedAt])
   @@index([driverId, status])
   @@index([status, requestedAt])
+}
+
+model DriverLocation {
+  id         String   @id @default(cuid())
+  driverId   String   @unique
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  latitude   Decimal  @db.Decimal(10, 7)
+  longitude  Decimal  @db.Decimal(10, 7)
+  recordedAt DateTime @default(now())
+
+  @@index([recordedAt])
+}
+
+model RidePayment {
+  id                    String           @id @default(cuid())
+  rideId                String           @unique
+  ride                  Ride             @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  amount                Decimal          @db.Decimal(10, 2)
+  currency              String           @default("BOB")
+  method                PaymentMethod
+  status                PaymentStatus    @default(PENDING)
+  paidAt                DateTime?
+  cashConfirmedAt       DateTime?
+  cashConfirmedByUserId String?
+  cashConfirmedBy       User?            @relation("CashPaymentConfirmations", fields: [cashConfirmedByUserId], references: [id], onDelete: SetNull)
+  attempts              PaymentAttempt[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model PaymentAttempt {
+  id                String               @id @default(cuid())
+  ridePaymentId     String
+  ridePayment       RidePayment          @relation(fields: [ridePaymentId], references: [id], onDelete: Restrict)
+  providerCode      String               @db.VarChar(64)
+  idempotencyKey    String               @db.VarChar(128)
+  requestHash       String               @db.Char(64)
+  providerReference String?              @db.VarChar(191)
+  amount            Decimal              @db.Decimal(10, 2)
+  currency          String               @default("BOB") @db.VarChar(3)
+  status            PaymentAttemptStatus @default(CREATED)
+  expiresAt         DateTime?
+  webhookEvents     PaymentWebhookEvent[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([providerCode, idempotencyKey])
+  @@unique([providerCode, providerReference])
+  @@index([ridePaymentId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PaymentWebhookEvent {
+  id                String              @id @default(cuid())
+  providerCode      String              @db.VarChar(64)
+  providerEventId   String              @db.VarChar(191)
+  eventType         String              @db.VarChar(128)
+  payloadSha256     String              @db.Char(64)
+  paymentAttemptId  String?
+  paymentAttempt    PaymentAttempt?     @relation(fields: [paymentAttemptId], references: [id], onDelete: SetNull)
+  status            PaymentWebhookStatus @default(RECEIVED)
+  receivedAt        DateTime            @default(now())
+  processedAt       DateTime?
+  lastErrorCode     String?             @db.VarChar(64)
+
+  @@unique([providerCode, providerEventId])
+  @@index([status, receivedAt])
+  @@index([paymentAttemptId])
 }

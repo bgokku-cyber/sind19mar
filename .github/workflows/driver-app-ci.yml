@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck:
+  validate:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,3 +32,5 @@ jobs:
         run: npm install
       - name: Revisar tipos TypeScript
         run: npm run typecheck
+      - name: Validar exportación Android de Expo
+        run: npx expo export --platform android

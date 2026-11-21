@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://sind19mar.onrender.com/api').replace(/\/$/, '');
 const TOKEN_KEY = 'sind19mar.driver.token';
 
 export type DriverProfile = {
@@ -63,7 +63,9 @@ export type DriverRide = {
   originAddress: string;
   destinationAddress: string;
   estimatedFare: string | number | null;
+  finalFare: string | number | null;
   paymentMethod: 'CASH' | 'DIGITAL';
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
   requestedAt: string;
 };
 
@@ -82,5 +84,53 @@ export async function acceptRide(rideId: string) {
 export async function advanceRide(rideId: string, status: 'DRIVER_ARRIVING' | 'IN_PROGRESS' | 'COMPLETED') {
   return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/status`, {
     method: 'POST', body: JSON.stringify({ status }),
+  });
+}
+
+
+export async function cancelRide(rideId: string) {
+  return request<DriverRide>(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' });
+}
+
+export type DriverPayment = {
+  id: string;
+  rideId: string;
+  amount: string | number;
+  currency: 'BOB';
+  method: 'CASH' | 'DIGITAL';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  paidAt: string | null;
+  cashConfirmedAt: string | null;
+  cashConfirmedByUserId: string | null;
+};
+
+/** Confirma el efectivo recibido; el backend valida conductor, viaje y estado del pago. */
+export async function confirmCashPayment(rideId: string) {
+  return request<DriverPayment>(`/rides/${encodeURIComponent(rideId)}/payment/cash/confirm`, { method: 'POST' });
+}
+
+export type MapConfig = {
+  city: string;
+  country: string;
+  center: { latitude: number; longitude: number };
+  defaultZoom: number;
+  coverageRadiusKm: number;
+  provider: string;
+  tileUrlTemplate: string;
+  locationMode: 'gps_or_manual';
+  attributionRequired: boolean;
+};
+
+/** Configuración geográfica central compartida por las aplicaciones. */
+export async function getMapConfig() {
+  return request<MapConfig>('/maps/config');
+}
+
+
+/** Envía una posición GPS autenticada del conductor. */
+export async function updateMyLocation(location: { latitude: number; longitude: number }) {
+  return request<{ latitude: number; longitude: number; recordedAt: string }>('/drivers/me/location', {
+    method: 'POST',
+    body: JSON.stringify(location),
   });
 }
