@@ -19,13 +19,14 @@ Desde `sind19mar_backend_inicio`:
 
    ```bash
    npm install
-   npx prisma db push
    npx prisma generate
+   npx prisma migrate deploy
+   npx prisma migrate status
    npx prisma db seed
    npm run start:dev
    ```
 
-**Importante:** `prisma db push` es sólo para una base de desarrollo descartable. Nunca lo ejecutes contra producción. Antes de producción se debe preparar una migración versionada y un respaldo.
+El esquema inicial ya está versionado en `prisma/migrations/20261121000100_init/`. `prisma migrate deploy` aplica únicamente migraciones pendientes y `prisma migrate status` permite comprobarlas. Para migraciones futuras, genera y revisa el SQL en una base local desechable con `npx prisma migrate dev --create-only --name descripcion_corta`; confirma el SQL y los archivos en Git antes de aplicar. No uses `prisma db push` como mecanismo de despliegue.
 
 La API queda en `http://localhost:3000/api`. Comprueba `GET /api/health`, `GET /api/health/ready` y `GET /api/maps/config`.
 
