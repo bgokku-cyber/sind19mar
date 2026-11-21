@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import {
@@ -38,6 +38,10 @@ export default function App() {
   const [rides, setRides] = useState<PassengerRide[]>([]);
   const [routeQuote, setRouteQuote] = useState<RouteQuote | null>(null);
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
+  const [liveDeviceCoordinates, setLiveDeviceCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
+  const mapRef = useRef<MapView | null>(null);
+  const [followDeviceLocation, setFollowDeviceLocation] = useState(true);
   const [loadingRides, setLoadingRides] = useState(false);
   const [rideActionBusy, setRideActionBusy] = useState(false);
 
@@ -57,6 +61,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, [authenticated]);
 
+  useEffect(() => {
+    if (!followDeviceLocation || !liveDeviceCoordinates) return;
+    mapRef.current?.animateToRegion({ ...liveDeviceCoordinates, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
+  }, [followDeviceLocation, liveDeviceCoordinates]);
+
+  // Mantiene el punto azul actualizado mientras la app está en primer plano.
+  useEffect(() => {
+    if (!authenticated || !locationTrackingEnabled) return;
+    let active = true;
+    let subscription: Location.LocationSubscription | null = null;
+    void Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, timeInterval: 10000, distanceInterval: 10 },
+      position => {
+        if (!active) return;
+        setLiveDeviceCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      },
+    ).then(next => {
+      if (active) subscription = next;
+      else next.remove();
+    }).catch(() => {
+      if (active) setLocationTrackingEnabled(false);
+    });
+    return () => { active = false; subscription?.remove(); };
+  }, [authenticated, locationTrackingEnabled]);
+
   async function refreshRides() { setLoadingRides(true); try { setRides(await getMyRides()); } catch (error) { Alert.alert('No se pudo cargar el historial', error instanceof Error ? error.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
 
   async function useCurrentLocation() {
@@ -67,6 +96,9 @@ export default function App() {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setOriginCoordinates(coordinates);
+      setLiveDeviceCoordinates(coordinates);
+      setLocationTrackingEnabled(true);
+      setFollowDeviceLocation(true);
       setRouteQuote(null);
       const places = await Location.reverseGeocodeAsync(coordinates);
       const place = places[0];
@@ -200,6 +232,8 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled">
         <View style={styles.mapCard}>
           <MapView
+            ref={mapRef}
+            onPanDrag={() => setFollowDeviceLocation(false)}
             style={StyleSheet.absoluteFill}
             key={originCoordinates ? 'pickup-map' : (mapConfig ? 'configured-map' : 'default-map')}
             initialRegion={{
@@ -211,6 +245,7 @@ export default function App() {
             mapType={Platform.OS === 'android' ? 'none' : 'standard'}
             onPress={event => {
               const point = event.nativeEvent.coordinate;
+              setFollowDeviceLocation(false);
               setDestinationCoordinates(point); setRouteQuote(null);
               void Location.reverseGeocodeAsync(point).then(places => {
                 const place = places[0];
@@ -220,6 +255,7 @@ export default function App() {
             }}
           >
             <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'} />
+            {liveDeviceCoordinates && <Marker coordinate={liveDeviceCoordinates} title="Tu ubicación en tiempo real" pinColor="#2563EB" />}
             {originCoordinates && <Marker coordinate={originCoordinates} title="Punto de recogida" pinColor="#16A34A" />}
             {destinationCoordinates && <Marker coordinate={destinationCoordinates} title="Destino" pinColor="#073B2B" />}
             {routeQuote?.geometry?.coordinates?.length ? <Polyline coordinates={routeQuote.geometry.coordinates.map(([longitude, latitude]) => ({ latitude, longitude }))} strokeColor={C.green} strokeWidth={4} /> : null}
