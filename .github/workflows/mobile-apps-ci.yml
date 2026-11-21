@@ -69,7 +69,7 @@ jobs:
           node-version: 22
       - name: Install app dependencies
         run: npm install
-      - name: Create or link the app's EAS project under the owner's personal Expo account
+      - name: Ensure EAS project association and build installable Android APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
@@ -77,3 +77,4 @@ jobs:
           eas init --account elmer658 --non-interactive --json
           echo "Resolved EAS configuration for apps/${{ matrix.app }}:"
           cat app.json
+          eas build --platform android --profile preview --non-interactive --no-wait
