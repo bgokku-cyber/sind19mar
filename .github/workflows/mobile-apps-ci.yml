@@ -67,6 +67,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install app dependencies
+        run: npm install
       - name: Inspect existing EAS project association (read-only)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
