@@ -48,8 +48,10 @@ jobs:
         run: npm install
       - name: Generar cliente Prisma
         run: npx prisma generate
-      - name: Validar esquema contra PostgreSQL real
-        run: npx prisma db push --skip-generate
+      - name: Aplicar migraciones versionadas en PostgreSQL limpio
+        run: npx prisma migrate deploy
+      - name: Verificar estado de migraciones
+        run: npx prisma migrate status
       - name: Revisar estilo y posibles errores
         run: npm run lint
       - name: Compilar backend
