@@ -69,10 +69,27 @@ jobs:
           node-version: 22
       - name: Install app dependencies
         run: npm install
-      - name: Verify latest preview APK build status
+      - name: Wait for the preview APK build to finish
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           npm install --global eas-cli
           eas project:info --non-interactive
-          eas build:list --platform android --build-profile preview --json --limit 1
+          for attempt in $(seq 1 24); do
+            builds=$(eas build:list --platform android --build-profile preview --json --limit 1)
+            build_id=$(echo "$builds" | jq -r '.[0].id // empty')
+            status=$(echo "$builds" | jq -r '.[0].status // empty')
+            artifact=$(echo "$builds" | jq -r '.[0].artifacts.buildUrl // empty')
+            echo "App: ${{ matrix.app }} | Build: $build_id | Status: $status"
+            if [ "$status" = "FINISHED" ]; then
+              echo "APK ready: $artifact"
+              exit 0
+            fi
+            if [ "$status" = "ERRORED" ] || [ "$status" = "CANCELED" ]; then
+              echo "::error::EAS build ended with status $status"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for EAS preview build."
+          exit 1
