@@ -53,19 +53,21 @@ export default function App() {
 
   // Comparte GPS sólo tras consentimiento explícito y mientras el conductor esté conectado.
   useEffect(() => {
-    if (!signedIn || !locationSharingEnabled || !profile ||
-        !['AVAILABLE', 'ON_TRIP'].includes(profile.availability)) return;
+    if (!signedIn || !mapVisible || !driverCoordinates || !profile) return;
+    const shouldShareLocation = locationSharingEnabled && ['AVAILABLE', 'ON_TRIP'].includes(profile.availability);
     let active = true;
     let subscription: Location.LocationSubscription | null = null;
     void Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 25 },
+      { accuracy: Location.Accuracy.Balanced, timeInterval: 10000, distanceInterval: 10 },
       position => {
         if (!active) return;
         const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
         setDriverCoordinates(coordinates);
-        void updateMyLocation(coordinates).catch(() => {
-          // La siguiente lectura GPS reintentará el envío sin interrumpir al conductor.
-        });
+        if (shouldShareLocation) {
+          void updateMyLocation(coordinates).catch(() => {
+            // La siguiente lectura GPS reintentará el envío sin interrumpir al conductor.
+          });
+        }
       },
     ).then(next => {
       if (active) subscription = next;
@@ -74,7 +76,7 @@ export default function App() {
       if (active) setLocationSharingEnabled(false);
     });
     return () => { active = false; subscription?.remove(); };
-  }, [signedIn, locationSharingEnabled, profile?.availability]);
+  }, [signedIn, mapVisible, !!driverCoordinates, locationSharingEnabled, profile?.availability]);
 
   useEffect(() => {
     if (!mapVisible || !followDeviceLocation || !driverCoordinates) return;
