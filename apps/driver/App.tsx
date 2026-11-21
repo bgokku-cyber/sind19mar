@@ -36,7 +36,7 @@ export default function App() {
   async function refresh() { setProfile(await getProfile()); }
   async function refreshRides() { setLoadingRides(true); try { setRides(await getRides()); } catch (e) { Alert.alert('No se pudieron cargar los viajes', e instanceof Error ? e.message : 'Inténtalo nuevamente.'); } finally { setLoadingRides(false); } }
   async function handleRideAction(action: () => Promise<unknown>) { setBusy(true); try { await action(); await Promise.all([refresh(), refreshRides()]); } catch (e) { Alert.alert('No se pudo actualizar el viaje', e instanceof Error ? e.message : 'Inténtalo nuevamente.'); } finally { setBusy(false); } }
-  useEffect(() => { getMapConfig().then(setMapConfig).catch(() => setMapConfig(null)); restoreSession().then(async ok => { if (ok) { setSignedIn(true); try { await Promise.all([refresh(), refreshRides()]); } catch { setSignedIn(false); } } }).finally(() => setChecking(false)); }, []);
+  useEffect(() => { getMapConfig().then(setMapConfig).catch(() => setMapConfig(null)); restoreSession().then(async ok => { if (ok) { try { await refresh(); setSignedIn(true); await refreshRides(); } catch { setSignedIn(false); } } }).finally(() => setChecking(false)); }, []);
 
   // Consulta periódicamente el perfil y los viajes para reflejar asignaciones y cambios de estado.
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function App() {
     try {
       if (mode === 'login') await login(phone.trim(), password);
       else await register(fullName.trim(), phone.trim(), password, license.trim());
-      setSignedIn(true); await Promise.all([refresh(), refreshRides()]);
+      await refresh(); setSignedIn(true); await refreshRides();
     } catch (e) { Alert.alert('No pudimos continuar', e instanceof Error ? e.message : 'Inténtalo nuevamente.'); }
     finally { setBusy(false); }
   }
