@@ -14,13 +14,32 @@ export type DriverProfile = {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!API_URL) throw new Error('La API todavía no está configurada. Define EXPO_PUBLIC_API_URL.');
   const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof body.message === 'string' ? body.message : 'No se pudo completar la solicitud.');
-  return body as T;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof body.message === 'string' ? body.message : 'No se pudo completar la solicitud.');
+    }
+    return body as T;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('La conexión está tardando demasiado. Comprueba tu internet e inténtalo nuevamente.');
+    }
+    if (error instanceof Error && error.message) throw error;
+    throw new Error('No se pudo conectar con el servidor. Comprueba tu conexión a internet.');
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function login(phone: string, password: string) {
