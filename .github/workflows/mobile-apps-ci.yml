@@ -53,7 +53,7 @@ jobs:
           npm install --global eas-cli
           eas whoami
 
-  inspect-eas-projects:
+  link-eas-projects:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,10 +69,11 @@ jobs:
           node-version: 22
       - name: Install app dependencies
         run: npm install
-      - name: Inspect existing EAS project association (read-only)
+      - name: Create or link the app's EAS project under the owner's personal Expo account
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           npm install --global eas-cli
-          echo "Inspecting apps/${{ matrix.app }} without creating or modifying any Expo project."
-          eas project:info --non-interactive
+          eas init --account elmer658 --non-interactive --json
+          echo "Resolved EAS configuration for apps/${{ matrix.app }}:"
+          cat app.json
