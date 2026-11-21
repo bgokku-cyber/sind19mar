@@ -30,6 +30,8 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run typecheck
+      - name: Validate Expo configuration and dependencies
+        run: npx expo-doctor
 
   verify-expo-token:
     runs-on: ubuntu-latest
@@ -75,6 +77,7 @@ jobs:
         run: |
           npm install --global eas-cli
           eas project:info --non-interactive
+          eas build --platform android --profile preview --non-interactive --no-wait
           for attempt in $(seq 1 24); do
             builds=$(eas build:list --platform android --build-profile preview --json --limit 1)
             build_id=$(echo "$builds" | jq -r '.[0].id // empty')
@@ -93,3 +96,23 @@ jobs:
           done
           echo "::error::Timed out waiting for EAS preview build."
           exit 1
+
+
+  backend-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API liveness and PostgreSQL readiness
+        run: |
+          for attempt in $(seq 1 6); do
+            if curl --fail --silent --show-error https://sind19mar.onrender.com/api/health; then
+              echo
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "::error::Backend liveness check failed."
+              exit 1
+            fi
+            sleep 10
+          done
+          curl --fail --silent --show-error https://sind19mar.onrender.com/api/health/ready
+          echo

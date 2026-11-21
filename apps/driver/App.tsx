@@ -43,7 +43,7 @@ export default function App() {
         .catch(() => {
           // Los fallos transitorios de red no generan alertas repetidas.
         });
-    }, 15000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [signedIn]);
 
