@@ -53,7 +53,7 @@ export default function App() {
       void getMyRides().then(setRides).catch(() => {
         // La consulta periódica no interrumpe la experiencia; el usuario puede reintentar manualmente.
       });
-    }, 15000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [authenticated]);
 
