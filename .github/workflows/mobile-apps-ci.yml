@@ -30,3 +30,25 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run typecheck
+
+  verify-expo-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check that EXPO_TOKEN is configured
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::The EXPO_TOKEN secret is missing or unavailable."
+            exit 1
+          fi
+      - name: Verify Expo account authentication
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npm install --global eas-cli
+          eas whoami
