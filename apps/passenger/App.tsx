@@ -41,6 +41,7 @@ export default function App() {
   const [liveDeviceCoordinates, setLiveDeviceCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState(false);
   const mapRef = useRef<MapView | null>(null);
+  const [followDeviceLocation, setFollowDeviceLocation] = useState(true);
   const [loadingRides, setLoadingRides] = useState(false);
   const [rideActionBusy, setRideActionBusy] = useState(false);
 
@@ -59,6 +60,11 @@ export default function App() {
     }, 30000);
     return () => clearInterval(interval);
   }, [authenticated]);
+
+  useEffect(() => {
+    if (!followDeviceLocation || !liveDeviceCoordinates) return;
+    mapRef.current?.animateToRegion({ ...liveDeviceCoordinates, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
+  }, [followDeviceLocation, liveDeviceCoordinates]);
 
   // Mantiene el punto azul actualizado mientras la app está en primer plano.
   useEffect(() => {
@@ -92,6 +98,7 @@ export default function App() {
       setOriginCoordinates(coordinates);
       setLiveDeviceCoordinates(coordinates);
       setLocationTrackingEnabled(true);
+      setFollowDeviceLocation(true);
       setRouteQuote(null);
       const places = await Location.reverseGeocodeAsync(coordinates);
       const place = places[0];
@@ -226,6 +233,7 @@ export default function App() {
         <View style={styles.mapCard}>
           <MapView
             ref={mapRef}
+            onPanDrag={() => setFollowDeviceLocation(false)}
             style={StyleSheet.absoluteFill}
             key={originCoordinates ? 'pickup-map' : (mapConfig ? 'configured-map' : 'default-map')}
             initialRegion={{
@@ -237,6 +245,7 @@ export default function App() {
             mapType={Platform.OS === 'android' ? 'none' : 'standard'}
             onPress={event => {
               const point = event.nativeEvent.coordinate;
+              setFollowDeviceLocation(false);
               setDestinationCoordinates(point); setRouteQuote(null);
               void Location.reverseGeocodeAsync(point).then(places => {
                 const place = places[0];
