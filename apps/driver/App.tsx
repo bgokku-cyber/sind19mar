@@ -18,6 +18,7 @@ export default function App() {
   // El mapa nativo se monta sólo cuando el conductor lo solicita; evita que un fallo del proveedor bloquee el inicio y el registro.
   const [mapVisible, setMapVisible] = useState(false);
   const mapRef = useRef<MapView | null>(null);
+  const [followDeviceLocation, setFollowDeviceLocation] = useState(true);
   const [driverCoordinates, setDriverCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
@@ -76,9 +77,9 @@ export default function App() {
   }, [signedIn, locationSharingEnabled, profile?.availability]);
 
   useEffect(() => {
-    if (!mapVisible || !driverCoordinates) return;
+    if (!mapVisible || !followDeviceLocation || !driverCoordinates) return;
     mapRef.current?.animateToRegion({ ...driverCoordinates, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
-  }, [mapVisible, driverCoordinates]);
+  }, [mapVisible, followDeviceLocation, driverCoordinates]);
 
   async function refreshDriverLocation() {
     setLocationBusy(true);
@@ -88,6 +89,7 @@ export default function App() {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setDriverCoordinates(coordinates);
+      setFollowDeviceLocation(true);
       setMapVisible(true);
       if (profile && ['AVAILABLE', 'ON_TRIP'].includes(profile.availability)) {
         await updateMyLocation(coordinates);
@@ -155,7 +157,7 @@ export default function App() {
   return <SafeAreaView style={s.safeHome}><StatusBar barStyle="light-content" backgroundColor={C.dark}/><View style={s.header}><View><Text style={s.eyebrow}>SIND.19-MAR · CONDUCTOR</Text><Text style={s.headerTitle}>Hola, {profile?.user.fullName?.split(' ')[0] || 'conductor'}</Text><Text style={s.muted}>{mapConfig ? `${mapConfig.city}, ${mapConfig.country} · cobertura ${mapConfig.coverageRadiusKm} km` : 'Cargando zona de servicio…'}</Text></View><Pressable onPress={signOut} style={s.exit}><Text style={s.exitText}>↪</Text></Pressable></View><ScrollView contentContainerStyle={s.content}><View style={s.mapCard}>
   <View style={s.mapHeader}><Text style={s.sectionTitle}>Mapa de operación</Text><Pressable onPress={refreshDriverLocation} disabled={locationBusy}><Text style={s.refreshText}>{locationBusy ? 'Localizando…' : 'Mi ubicación'}</Text></Pressable></View>
   {mapVisible ? <View style={s.mapFrame}>
-    <MapView ref={mapRef} style={StyleSheet.absoluteFill} key={driverCoordinates ? 'driver-location' : (mapConfig ? 'configured-map' : 'default-map')} initialRegion={{ latitude: driverCoordinates?.latitude ?? mapConfig?.center.latitude ?? -16.5, longitude: driverCoordinates?.longitude ?? mapConfig?.center.longitude ?? -68.15, latitudeDelta: 0.045, longitudeDelta: 0.045 }} mapType={Platform.OS === 'android' ? 'none' : 'standard'}>
+    <MapView ref={mapRef} onPanDrag={() => setFollowDeviceLocation(false)} style={StyleSheet.absoluteFill} key={driverCoordinates ? 'driver-location' : (mapConfig ? 'configured-map' : 'default-map')} initialRegion={{ latitude: driverCoordinates?.latitude ?? mapConfig?.center.latitude ?? -16.5, longitude: driverCoordinates?.longitude ?? mapConfig?.center.longitude ?? -68.15, latitudeDelta: 0.045, longitudeDelta: 0.045 }} mapType={Platform.OS === 'android' ? 'none' : 'standard'}>
       <UrlTile urlTemplate={mapConfig?.tileUrlTemplate ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} maximumZ={19} shouldReplaceMapContent={Platform.OS === 'ios'}/>
       {driverCoordinates && <Marker coordinate={driverCoordinates} title="Tu ubicación" pinColor="#16A34A"/>}
     </MapView>
