@@ -1,0 +1,24 @@
+name: Expo Token Verification
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/expo-token-check.yml"
+      - "apps/passenger/**"
+      - "apps/driver/**"
+  workflow_dispatch:
+
+jobs:
+  verify-expo-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+      - name: Verify Expo authentication
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas whoami
