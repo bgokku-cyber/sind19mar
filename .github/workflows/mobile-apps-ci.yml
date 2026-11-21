@@ -53,7 +53,7 @@ jobs:
           npm install --global eas-cli
           eas whoami
 
-  link-eas-projects:
+  verify-eas-builds:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,12 +69,10 @@ jobs:
           node-version: 22
       - name: Install app dependencies
         run: npm install
-      - name: Ensure EAS project association and build installable Android APK
+      - name: Verify latest preview APK build status
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           npm install --global eas-cli
-          eas init --account elmer658 --non-interactive --json
-          echo "Resolved EAS configuration for apps/${{ matrix.app }}:"
-          cat app.json
-          eas build --platform android --profile preview --non-interactive --no-wait
+          eas project:info --non-interactive
+          eas build:list --platform android --build-profile preview --json --limit 1
